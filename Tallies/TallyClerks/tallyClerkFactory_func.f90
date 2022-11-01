@@ -12,6 +12,7 @@ module tallyClerkFactory_func
   use keffImplicitClerk_class,         only : keffImplicitClerk
   use collisionClerk_class,            only : collisionClerk
   use collisionProbabilityClerk_class, only : collisionProbabilityClerk
+  use surfaceCurrentClerk_class,       only : surfaceCurrentClerk
   use trackClerk_class,                only : trackClerk
   use simpleFMClerk_class,             only : simpleFMClerk
   use dancoffBellClerk_class,          only : dancoffBellClerk
@@ -32,6 +33,7 @@ module tallyClerkFactory_func
                                                                         'keffImplicitClerk        ',&
                                                                         'collisionClerk           ',&
                                                                         'collisionProbabilityClerk',&
+                                                                        'surfaceCurrentClerk      ',&
                                                                         'trackClerk               ',&
                                                                         'simpleFMClerk            ',&
                                                                         'shannonEntropyClerk      ',&
@@ -75,6 +77,10 @@ contains
      case('collisionProbabilityClerk')
        allocate(collisionProbabilityClerk :: new)
        call new % init(dict, name)
+
+    case('surfaceCurrentClerk')
+      allocate(surfaceCurrentClerk :: new)
+      call new % init(dict, name)
 
      case('trackClerk')
        allocate(trackClerk :: new)
