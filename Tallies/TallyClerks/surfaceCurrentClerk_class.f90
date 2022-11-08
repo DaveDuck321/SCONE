@@ -180,7 +180,7 @@ module surfaceCurrentClerk_class
       type(particleState)                       :: state
       integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign, gridDirection
       integer(longInt)                          :: addr, stepIdx
-      real(defReal)                             :: currentContribution
+      real(defReal)                             :: surfaceCrossSection, currentContribution
       real(defReal),dimension(3)                :: step, diff
 
       ! Copy the state to allow mutation
@@ -194,7 +194,9 @@ module surfaceCurrentClerk_class
       if (coordAtStart == coordAtEnd) return
 
       diff = end - start
-      currentContribution = (diff(dir)) / norm2(diff)
+      surfaceCrossSection = (self % spacing(1) * self % spacing(2) * self % spacing(3)) / (self % spacing(dir))
+      currentContribution = (diff(dir)) / (norm2(diff) * surfaceCrossSection)
+
 
       if (diff(dir) > 0) then
         offsetDueToSign = 0
