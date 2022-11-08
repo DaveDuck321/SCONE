@@ -40,7 +40,7 @@ module surfaceCurrentClerk_class
     !!      type surfaceCurrentClerk;
     !!      spaceMap {
     !!        type multiMap;
-    !!        spacing 0.2;
+    !!        spacing (0.2, 0.2, 0.2);
     !!        maps (mapx mapy mapz);
     !!        mapx {
     !!          type spaceMap;
@@ -73,10 +73,9 @@ module surfaceCurrentClerk_class
     type, public, extends(tallyClerk) :: surfaceCurrentClerk
       private
       !! Map defining the discretisation
-      class(tallyMap), allocatable           :: map
-      integer(shortInt)                      :: N = 0 !! Number of bins
-      real(defReal)                          :: spacing
-      !type(macroResponse)                    :: resp
+      class(tallyMap), allocatable             :: map
+      integer(shortInt)                        :: N = 0 !! Number of bins
+      real(defReal), dimension(:), allocatable :: spacing
 
 
     contains
@@ -125,6 +124,7 @@ module surfaceCurrentClerk_class
       class(surfaceCurrentClerk), intent(inout) :: self
       class(dictionary), intent(in)                   :: dict
       character(nameLen), intent(in)                  :: name
+      character(100), parameter :: Here = 'init (surfaceCurrentClerk_class.f90)'
 
       ! Assign name
       call self % setName(name)
@@ -133,6 +133,10 @@ module surfaceCurrentClerk_class
       call new_tallyMap(self % map, dict % getDictPtr('spaceMap'))
 
       call dict % get(self % spacing, 'spacing')
+
+      if (size(self % spacing) /= 3) then
+        call fatalError(Here, "SurfaceCurrentClerk requires size('spacing') == 3")
+      end if
 
       self % N = self % map % bins(0)
 
@@ -174,18 +178,20 @@ module surfaceCurrentClerk_class
       real(defReal),dimension(3), intent(in)    :: start, end
       integer(shortInt), intent(in)             :: dir
       type(particleState)                       :: state
-      integer(shortInt),dimension(3)            :: coordAtEnd, coordAtStart
+      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign, gridDirection
       integer(longInt)                          :: addr, stepIdx
       real(defReal)                             :: currentContribution
       real(defReal),dimension(3)                :: step, diff
-      integer(shortInt)                         :: i, offsetDueToSign, gridDirection
 
       ! Copy the state to allow mutation
       state = state_in
 
       ! Discretize onto the grid
-      coordAtEnd = floor(end * (1.0/ (self % spacing)))
-      coordAtStart = floor(start * (1.0/ (self % spacing)))
+      coordAtEnd = floor(end(dir) * (1.0/ (self % spacing(dir))))
+      coordAtStart = floor(start(dir) * (1.0/ (self % spacing(dir))))
+
+      ! No boundaries crossed => no current
+      if (coordAtStart == coordAtEnd) return
 
       diff = end - start
       currentContribution = (diff(dir)) / norm2(diff)
@@ -202,13 +208,13 @@ module surfaceCurrentClerk_class
       step = diff / diff(dir)
 
       ! Score the current across the final surface
-      state % r (dir) = end(dir) + offsetDueToSign * step(dir) * (self % spacing)
+      state % r (dir) = end(dir) + offsetDueToSign * step(dir) * (self % spacing(dir))
       stepIdx = self % map % map(state)
       addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
       call mem % score(currentContribution, addr)
 
       ! Score the current between all intermediate surfaces
-      do i = 0, abs(coordAtEnd(dir) - coordAtStart(dir)) - 1, gridDirection
+      do i = 0, abs(coordAtEnd - coordAtStart) - 1, gridDirection
         state % r = start + (i + offsetDueToSign) * step * (self % spacing)
         stepIdx = self % map % map(state)
 
@@ -229,19 +235,12 @@ module surfaceCurrentClerk_class
       class(nuclearDatabase),intent(inout)            :: xsData
       type(scoreMemory), intent(inout)                :: mem
       type(particleState)                             :: state
-      integer(shortInt)                               :: sIdx, cIdx
       character(100), parameter :: Here = 'reportInColl (surfaceCurrentClerk_class.f90)'
 
-      sIdx = self % map % map(p % preCollision)
       state = p
-      cIdx = self % map % map(state)
-
-      ! No boundaries crossed => no current
-      if (sIdx == cIdx) return
-
-      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 1_shortInt)
-      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 2_shortInt)
-      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 3_shortInt)
+      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 1)
+      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 2)
+      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 3)
     end subroutine reportInColl
 
     !!
