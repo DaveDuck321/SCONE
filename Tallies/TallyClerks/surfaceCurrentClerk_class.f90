@@ -98,6 +98,9 @@ module surfaceCurrentClerk_class
 
       ! Deconstructor
       procedure  :: kill
+
+      ! (Private) Utility
+      procedure  :: reportCurrentInDirection
     end type surfaceCurrentClerk
 
     !!
@@ -163,6 +166,58 @@ module surfaceCurrentClerk_class
 
     end function getSize
 
+
+    subroutine reportCurrentInDirection(self, mem, state_in, start, end, dir)
+      class(surfaceCurrentClerk), intent(inout) :: self
+      type(scoreMemory), intent(inout)          :: mem
+      type(particleState), intent(in)           :: state_in
+      real(defReal),dimension(3), intent(in)    :: start, end
+      integer(shortInt), intent(in)             :: dir
+      type(particleState)                       :: state
+      integer(shortInt),dimension(3)            :: coordAtEnd, coordAtStart
+      integer(longInt)                          :: addr, stepIdx
+      real(defReal)                             :: currentContribution
+      real(defReal),dimension(3)                :: step, diff
+      integer(shortInt)                         :: i, offsetDueToSign, gridDirection
+
+      ! Copy the state to allow mutation
+      state = state_in
+
+      ! Discretize onto the grid
+      coordAtEnd = floor(end * (1.0/ (self % spacing)))
+      coordAtStart = floor(start * (1.0/ (self % spacing)))
+
+      diff = end - start
+      currentContribution = (diff(dir)) / norm2(diff)
+
+      if (diff(dir) > 0) then
+        offsetDueToSign = 0
+        gridDirection = 1
+      else
+        offsetDueToSign = -1
+        gridDirection = -1
+      end if
+
+      ! Normalized so step(dir) == 1
+      step = diff / diff(dir)
+
+      ! Score the current across the final surface
+      state % r (dir) = end(dir) + offsetDueToSign * step(dir) * (self % spacing)
+      stepIdx = self % map % map(state)
+      addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
+      call mem % score(currentContribution, addr)
+
+      ! Score the current between all intermediate surfaces
+      do i = 0, abs(coordAtEnd(dir) - coordAtStart(dir)) - 1, gridDirection
+        state % r = start + (i + offsetDueToSign) * step * (self % spacing)
+        stepIdx = self % map % map(state)
+
+        addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
+        call mem % score(currentContribution, addr)
+      end do
+
+    end subroutine reportCurrentInDirection
+
     !!
     !! Process incoming collision report
     !!
@@ -174,17 +229,9 @@ module surfaceCurrentClerk_class
       class(nuclearDatabase),intent(inout)            :: xsData
       type(scoreMemory), intent(inout)                :: mem
       type(particleState)                             :: state
-      integer(shortInt)                               :: sIdx, cIdx, stepIdx, stepPreviousIdx
-      integer(longInt)                                :: addr
-      integer(shortInt),dimension(3)                  :: coordAtStart, coordAtEnd
-      real(defReal),dimension(3)                      :: step, diff, currentContribution
-      integer(shortInt)                               :: i
-      class(neutronMaterial), pointer                 :: mat
+      integer(shortInt)                               :: sIdx, cIdx
       character(100), parameter :: Here = 'reportInColl (surfaceCurrentClerk_class.f90)'
 
-      ! Find starting index in the map
-      ! It is important that preCollision is not changed by a collisionProcessor
-      !before the particle is fed to the tally, otherwise results will be meaningless
       sIdx = self % map % map(p % preCollision)
       state = p
       cIdx = self % map % map(state)
@@ -192,44 +239,9 @@ module surfaceCurrentClerk_class
       ! No boundaries crossed => no current
       if (sIdx == cIdx) return
 
-      !! TODO clean below into three function calls
-      coordAtEnd = floor((state % r) * (1.0/ (self % spacing)))
-      coordAtStart = floor((p % preCollision % r) * (1.0/ (self % spacing)))
-      diff = (state % r) - (p % preCollision % r)
-      currentContribution = diff / norm2(diff)
-
-      ! X
-      stepIdx = sIdx
-      step = diff / abs(diff(1))
-      if (coordAtEnd(1) - coordAtStart(1) > 0) then
-        do i = 1, abs(coordAtEnd(1) - coordAtStart(1)) - 1, 1
-          state % r = (p % preCollision % r) + i * step * (self % spacing)
-
-          stepPreviousIdx = stepIdx
-          stepIdx = self % map % map(state)
-          if (stepIdx == 0) then
-            print *, sIdx, cIdx
-            print *, state % r
-            state = p
-            print *, "goal: ", state % r
-            print *, "start: ", p % preCollision % r
-            print *, "step: ", i * step * (self % spacing)
-            stop 37
-          end if
-          if (stepPreviousIdx == stepIdx) then
-            print *, stepIdx, stepPreviousIdx
-            stop 99
-          end if
-
-          addr = self % getMemAddress() + (0 * self % N) + stepIdx - 1
-          call mem % score(currentContribution(1), addr)
-        end do
-        ! Score the remaining current
-        addr = self % getMemAddress() + (0 * self % N) + cIdx - 1
-        call mem % score(currentContribution(1), addr)
-      end if
-
-
+      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 1_shortInt)
+      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 2_shortInt)
+      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 3_shortInt)
     end subroutine reportInColl
 
     !!
@@ -376,7 +388,6 @@ module surfaceCurrentClerk_class
 
       if(allocated(self % map)) deallocate(self % map)
       self % N = 0
-
     end subroutine kill
 
-  end module surfaceCurrentClerk_class
+end module surfaceCurrentClerk_class
