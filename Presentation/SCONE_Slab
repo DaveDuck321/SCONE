@@ -1,0 +1,104 @@
+type eigenPhysicsPackage;
+
+pop      4000;
+active   20000;
+inactive 0;
+XSdata   ce;
+dataType ce;
+
+source { type pointSource; r (0.0 0.0 0.0); particle neutron; E 0.6E-6; }
+
+collisionOperator { neutronCE {type neutronCEstd;}
+                    neutronMG {type neutronMGstd;}
+                  }
+
+transportOperator { type transportOperatorDT;
+                  }
+
+inactiveTally {
+              }
+
+activeTally  {
+  current {
+    type surfaceCurrentClerk;
+    spacing (2.0 2.0 2.0);
+    spaceMap {
+      type multiMap;
+      maps (mapx mapy mapz);
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 10;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 10;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 10;
+      }
+    }
+  }
+}
+
+geometry {
+    type geometryStd;
+    boundary (0 0 1 1 1 1);
+    graph {type shrunk;}
+
+    surfaces
+    {
+      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (500 500 500); }
+    }
+
+
+    cells
+    {
+    }
+
+    universes
+    {
+
+      root
+      {
+        id 1;
+        type rootUniverse;
+        border 1;
+        fill fuel;
+      }
+    }
+}
+
+nuclearData {
+
+  handles {
+     ce { type aceNeutronDatabase; aceLibrary /home/tom/Downloads/myACE/JEF311.aceXS;}
+     mg { type baseMgNeutronDatabase; PN P1;}
+  }
+
+
+materials {
+
+    fuel {
+      temp       273;
+      composition {
+        92235.03  0.037047;
+      }
+      xsFile ./XS/URRa_2_1_XSS;
+    }
+
+}
+
+}

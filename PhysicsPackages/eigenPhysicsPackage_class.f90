@@ -13,7 +13,7 @@ module eigenPhysicsPackage_class
                                              timerTime, timerReset, secToChar
 
   ! Particle classes and Random number generator
-  use particle_class,                 only : particle, P_NEUTRON
+  use particle_class,                 only : particle, P_NEUTRON, particleState
   use particleDungeon_class,          only : particleDungeon
   use RNG_class,                      only : RNG
 
@@ -141,20 +141,23 @@ contains
     class(tallyResult),allocatable            :: res
     type(collisionOperator), save             :: collOp
     class(transportOperator),allocatable,save :: transOp
-    type(RNG), target, save                   :: pRNG     
+    type(RNG), target, save                   :: pRNG
     type(particle), save                      :: neutron
+    type(particleState)                       :: state
+    type(particle)                            :: p
     real(defReal)                             :: k_old, k_new
     real(defReal)                             :: elapsed_T, end_T, T_toEnd
+    integer :: io
     character(100),parameter :: Here ='cycles (eigenPhysicsPackage_class.f90)'
     !$omp threadprivate(neutron, buffer, collOp, transOp, pRNG)
 
     !$omp parallel
     ! Create particle buffer
     call buffer % init(self % bufferSize)
-    
+
     ! Initialise neutron
     neutron % geomIdx = self % geomIdx
-    
+
     ! Create a collision + transport operator which can be made thread private
     collOp = self % collOp
     transOp = self % transOp
@@ -183,10 +186,10 @@ contains
         pRNG = self % pRNG
         neutron % pRNG => pRNG
         call neutron % pRNG % stride(n)
-        
-        ! Obtain particle current cycle dungeon 
+
+        ! Obtain particle current cycle dungeon
         call self % thisCycle % copy(neutron, n)
-        
+
         bufferLoop: do
           call self % geom % placeCoord(neutron % coords)
 
@@ -204,7 +207,7 @@ contains
             call collOp % collide(neutron, tally, buffer, self % nextCycle)
             if(neutron % isDead) exit history
           end do history
-        
+
           ! Clear out buffer
           if (buffer % isEmpty()) then
             exit bufferLoop
@@ -213,12 +216,12 @@ contains
           end if
 
         end do bufferLoop
-      
+
       end do gen
       !$omp end parallel do
-      
-      call self % thisCycle % cleanPop() 
-      
+
+      call self % thisCycle % cleanPop()
+
       ! Update RNG
       call self % pRNG % stride(self % pop + 1)
 
@@ -237,6 +240,21 @@ contains
       self % temp_dungeon => self % nextCycle
       self % nextCycle    => self % thisCycle
       self % thisCycle    => self % temp_dungeon
+
+
+      ! if (mod(i, 20) == 0) then
+      !   open(newunit=io, file="positions.txt", action="write",position='append')
+      !   nParticles = self % thisCycle % popSize()
+      !   do n = 1, nParticles
+
+      !     ! Obtain particle current cycle dungeon
+      !     p = self % thisCycle % get(n)
+      !     state = p
+      !     write(io, *) state % r, ", ", state % wgt
+      !   end do
+      !   write(io, *) ""
+      !   close(io)
+      ! end if
 
       ! Obtain estimate of k_eff
       call tallyAtch % getResult(res,'keff')
