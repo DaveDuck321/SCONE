@@ -250,6 +250,51 @@ contains
   end subroutine testGetScore
 
   !!
+  !! Test resetting a memory location
+  !! Ignore test parametrisation
+  !!
+  @Test(cases=[1])
+  subroutine testReset(this)
+    class(test_scoreMemory), intent(inout) :: this
+    type(scoreMemory)                      :: mem
+    integer(longInt)                       :: baseAddr
+    real(defReal)                          :: value1, value2, value3
+    real(defReal),parameter :: TOL = 1.0E-9
+
+    baseAddr = 1
+    call mem % init(3_longInt, 1)
+
+    call mem % score(1.0_defReal, baseAddr + 0)
+    call mem % score(1.0_defReal, baseAddr + 0)
+    call mem % score(1.0_defReal, baseAddr + 0)
+
+    call mem % score(1.0_defReal, baseAddr + 1)
+    call mem % score(1.0_defReal, baseAddr + 1)
+
+    call mem % score(1.0_defReal, baseAddr + 2)
+
+    call mem % closeCycle(1.0_defReal)
+
+
+    call mem % getResult(value1, baseAddr + 0)
+    call mem % getResult(value2, baseAddr + 1)
+    call mem % getResult(value3, baseAddr + 2)
+    @assertEqual(3.0, value1, TOL, 'Test getScore(1) before reset')
+    @assertEqual(2.0, value2, TOL, 'Test getScore(2) before reset')
+    @assertEqual(1.0, value3, TOL, 'Test getScore(3) before reset')
+
+    call mem % reset(baseAddr + 1, 2_longInt)
+
+    call mem % getResult(value1, baseAddr + 0)
+    call mem % getResult(value2, baseAddr + 1)
+    call mem % getResult(value3, baseAddr + 2)
+    @assertEqual(3.0, value1, TOL, 'Test getScore(1) after reset')
+    @assertEqual(0.0, value2, TOL, 'Test getScore(2) after reset')
+    @assertEqual(0.0, value3, TOL, 'Test getScore(3) after reset')
+
+  end subroutine testReset
+
+  !!
   !! Test killing uninitialised scoreMemory
   !!
 @Test(cases=[1])

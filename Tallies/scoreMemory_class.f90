@@ -58,6 +58,8 @@ module scoreMemory_class
   !!
   !!     getBatchSize(): Returns number of cycles that constitute a single batch.
   !!
+  !!     reset(idx): Reset the value in a memory location
+  !!
   !! Example use case:
   !!
   !!  do batches=1,20
@@ -98,6 +100,7 @@ module scoreMemory_class
     procedure :: closeBin
     procedure :: lastCycle
     procedure :: getBatchSize
+    procedure :: reset
 
     ! Private procedures
     procedure, private :: score_defReal
@@ -173,7 +176,7 @@ contains
   subroutine score_defReal(self, score, idx)
     class(scoreMemory), intent(inout) :: self
     real(defReal), intent(in)         :: score
-    integer(longInt), intent(in)      :: idx 
+    integer(longInt), intent(in)      :: idx
     integer(shortInt)                 :: thread_idx
     character(100),parameter :: Here = 'score_defReal (scoreMemory_class.f90)'
 
@@ -432,5 +435,20 @@ contains
     end if
 
   end function getScore
+
+  !!
+  !! Reset the values in a memory locations [addr: addr + N]
+  !! Useful for tallies that do not accumulate across cycles
+  !!
+  subroutine reset(self, addr, N)
+    class(scoreMemory), intent(inout) :: self
+    integer(longInt), intent(in)      :: addr, N
+    integer(longInt)                  :: offset
+
+    do offset = 0, N-1
+      self % bins(addr + offset, :) = ZERO
+    end do
+
+  end subroutine reset
 
 end module scoreMemory_class
