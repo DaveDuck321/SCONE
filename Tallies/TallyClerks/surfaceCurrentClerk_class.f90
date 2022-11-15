@@ -171,9 +171,10 @@ module surfaceCurrentClerk_class
     end function getSize
 
 
-    subroutine reportCurrentInDirection(self, mem, state_in, start, end, dir)
+    subroutine reportCurrentInDirection(self, mem, weight, state_in, start, end, dir)
       class(surfaceCurrentClerk), intent(inout) :: self
       type(scoreMemory), intent(inout)          :: mem
+      real(defReal), intent(in)                 :: weight
       type(particleState), intent(in)           :: state_in
       real(defReal),dimension(3), intent(in)    :: start, end
       integer(shortInt), intent(in)             :: dir
@@ -196,7 +197,7 @@ module surfaceCurrentClerk_class
 
       diff = end - start
       surfaceCrossSection = (self % spacing(1) * self % spacing(2) * self % spacing(3)) / (self % spacing(dir))
-      currentContribution = (diff(dir)) / (norm2(diff) * surfaceCrossSection)
+      currentContribution = (weight * diff(dir)) / (norm2(diff) * surfaceCrossSection)
 
 
       if (diff(dir) > 0) then
@@ -241,9 +242,9 @@ module surfaceCurrentClerk_class
       character(100), parameter :: Here = 'reportInColl (surfaceCurrentClerk_class.f90)'
 
       state = p
-      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 1)
-      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 2)
-      call self % reportCurrentInDirection(mem, state, p % preCollision % r, state % r, 3)
+      call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 1)
+      call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 2)
+      call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 3)
     end subroutine reportInColl
 
     !!
