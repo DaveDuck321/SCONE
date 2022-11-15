@@ -178,13 +178,14 @@ module surfaceCurrentClerk_class
       real(defReal),dimension(3), intent(in)    :: start, end
       integer(shortInt), intent(in)             :: dir
       type(particleState)                       :: state
-      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign, gridDirection
+      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign
       integer(longInt)                          :: addr, stepIdx
       real(defReal)                             :: surfaceCrossSection, currentContribution
       real(defReal),dimension(3)                :: step, diff
 
       ! Copy the state to allow mutation
       state = state_in
+      state % r = start
 
       ! Discretize onto the grid
       coordAtEnd = floor(end(dir) * (1.0/ (self % spacing(dir))))
@@ -199,30 +200,30 @@ module surfaceCurrentClerk_class
 
 
       if (diff(dir) > 0) then
-        offsetDueToSign = 0
-        gridDirection = 1
-      else
         offsetDueToSign = -1
-        gridDirection = -1
+      else
+        offsetDueToSign = 0
       end if
 
-      ! Normalized so step(dir) == 1
-      step = diff / diff(dir)
-
-      ! Score the current across the final surface
-      state % r (dir) = end(dir) + offsetDueToSign * step(dir) * (self % spacing(dir))
-      stepIdx = self % map % map(state)
-      addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
-      call mem % score(currentContribution, addr)
+      ! Normalized so step(dir) == spacing(dir)
+      step = (diff / diff(dir)) * (self % spacing)
 
       ! Score the current between all intermediate surfaces
-      do i = 0, abs(coordAtEnd - coordAtStart) - 1, gridDirection
-        state % r = start + (i + offsetDueToSign) * step * (self % spacing)
+      do i = 1, abs(coordAtEnd - coordAtStart) - 1
+        state % r = start + (i + offsetDueToSign) * step
         stepIdx = self % map % map(state)
 
         addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
         call mem % score(currentContribution, addr)
       end do
+
+      ! Score the current into the last surface (without stepping past the end point)
+      step = end - state % r
+
+      state % r = end + offsetDueToSign * step
+      stepIdx = self % map % map(state)
+      addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
+      call mem % score(currentContribution, addr)
 
     end subroutine reportCurrentInDirection
 
