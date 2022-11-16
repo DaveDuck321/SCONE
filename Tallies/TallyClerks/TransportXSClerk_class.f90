@@ -1,5 +1,5 @@
 
-module MGxsClerk_class
+module TransportXSClerk_class
 
     use numPrecision
     use tallyCodes
@@ -59,13 +59,13 @@ module MGxsClerk_class
     !!
     !! SAMPLE DICTIOANRY INPUT:
     !!
-    !! myMGxsClerk {
-    !!   type MGxsClerk;
+    !! myTransportXSClerk {
+    !!   type TransportXSClerk;
     !!   energyMap { energyMap definition }
     !!   # spaceMap  { <other tallyMap definition> } #
     !! }
     !!
-    type, public, extends(tallyClerk) :: MGxsClerk
+    type, public, extends(tallyClerk) :: TransportXSClerk
       private
       ! Filter, Map & Vector of Responses
       class(tallyMap), allocatable      :: spaceMap
@@ -94,7 +94,7 @@ module MGxsClerk_class
       procedure  :: processResult
       procedure  :: display
 
-    end type MGxsClerk
+    end type TransportXSClerk
 
     !!
     !! multi group cross section result class
@@ -116,10 +116,10 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine init(self, dict, name)
-      class(MGxsClerk), intent(inout)   :: self
+      class(TransportXSClerk), intent(inout)   :: self
       class(dictionary), intent(in)     :: dict
       character(nameLen), intent(in)    :: name
-      character(100), parameter :: Here =' init (MGxsClerk_class.f90)'
+      character(100), parameter :: Here =' init (TransportXSClerk_class.f90)'
 
       ! Load energy map
       if( dict % isPresent('energyMap')) then
@@ -148,7 +148,7 @@ module MGxsClerk_class
     !! Return to uninitialised state
     !!
     elemental subroutine kill(self)
-      class(MGxsClerk), intent(inout) :: self
+      class(TransportXSClerk), intent(inout) :: self
 
       ! Superclass
       call kill_super(self)
@@ -170,7 +170,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     function validReports(self) result(validCodes)
-      class(MGxsClerk),intent(in)                :: self
+      class(TransportXSClerk),intent(in)                :: self
       integer(shortInt),dimension(:),allocatable :: validCodes
 
       validCodes = [inColl_CODE, outColl_CODE, cycleEnd_CODE]
@@ -183,7 +183,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     elemental function getSize(self) result(S)
-      class(MGxsClerk), intent(in) :: self
+      class(TransportXSClerk), intent(in) :: self
       integer(shortInt)            :: S
 
       S = self % width
@@ -197,7 +197,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine reportInColl(self, p, xsData, mem)
-      class(MGxsClerk), intent(inout)       :: self
+      class(TransportXSClerk), intent(inout)       :: self
       class(particle), intent(in)           :: p
       class(nuclearDatabase), intent(inout) :: xsData
       type(scoreMemory), intent(inout)      :: mem
@@ -254,7 +254,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine reportOutColl(self, p, MT, muL, xsData, mem)
-      class(MGxsClerk), intent(inout) :: self
+      class(TransportXSClerk), intent(inout) :: self
       class(particle), intent(in)             :: p
       integer(shortInt), intent(in)           :: MT
       real(defReal), intent(in)               :: muL
@@ -331,7 +331,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine reportCycleEnd(self, end, mem)
-      class(MGxsClerk), intent(inout)     :: self
+      class(TransportXSClerk), intent(inout)     :: self
       class(particleDungeon), intent(in)  :: end
       type(scoreMemory), intent(inout)    :: mem
       integer(longInt)                    :: addr, N, i, binIdx, enIdx, matIdx
@@ -363,7 +363,7 @@ module MGxsClerk_class
     !!
     pure subroutine processResult(self, mem, sigmaF_res, sigmaC_res, transpFL_res, transpOS_res, &
                                   nuBar_res, chiTot_res, P0_res, P1_res, prod_res)
-      class(MGxsClerk), intent(in)     :: self
+      class(TransportXSClerk), intent(in)     :: self
       type(scoreMemory), intent(in)    :: mem
       real(defReal), dimension(:,:), allocatable, intent(out) :: sigmaF_res
       real(defReal), dimension(:,:), allocatable, intent(out) :: nuBar_res
@@ -498,7 +498,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     pure subroutine getResult(self, res, mem)
-      class(MGxsClerk), intent(in)                     :: self
+      class(TransportXSClerk), intent(in)                     :: self
       class(tallyResult), allocatable, intent(inout)   :: res
       type(scoreMemory), intent(in)                    :: mem
       integer(shortInt)                                :: N, i, j, k
@@ -508,24 +508,16 @@ module MGxsClerk_class
       call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod)
 
       N = self % energyN
-      allocate(matrix(self % matN+1, (4*N + 3*N*N)))
+      allocate(matrix(self % matN, N))
 
       ! Loop over spatial regions
       do i = 1, self % matN
         ! Loop over energies
         do j = 1, N
-          matrix(i,j) = sigmaC(1,N-(j-1) + N*(i-1))
-          matrix(i,N+j) = sigmaF(1,N-(j-1) + N*(i-1))
-          matrix(i,2*N+j) = nuBar(1,N-(j-1) + N*(i-1))
-          matrix(i,3*N+j) = chiT(1,N-(j-1) + N*(i-1))
-          do k = 1, N
-            matrix(i,4*N+N*(j-1)+k) = P0(1,N*N-(N*(j-1)+k-1) + N*N*(i-1))
-            matrix(i,4*N+N*N+N*(j-1)+k) = P1(1,N*N-(N*(j-1)+k-1) + N*N*(i-1))
-            matrix(i,4*N+2*N*N+N*(j-1)+k) = prod(1,N*N-(N*(j-1)+k-1) + N*N*(i-1))
-          end do
+          ! TODO: HACK!! I only record the transport cross section
+          matrix(i, j) = transFL(1, N-(j-1) + N*(i-1))
         end do
       end do
-      matrix(self % matN + 1,1:(4*N + 3*N*N)) = N
 
       allocate(res, source = xsMatrix(matrix))
 
@@ -537,7 +529,7 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine print(self, outFile, mem)
-      class(MGxsClerk), intent(in)               :: self
+      class(TransportXSClerk), intent(in)               :: self
       class(outputFile), intent(inout)           :: outFile
       type(scoreMemory), intent(in)              :: mem
       integer(shortInt)                          :: i
@@ -549,7 +541,7 @@ module MGxsClerk_class
       call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod)
 
       ! Begin block
-      name = 'MGxs'
+      name = 'TransportXS'
       call outFile % startBlock(name)
 
       ! Allocate space for resultShape array`
@@ -563,7 +555,7 @@ module MGxsClerk_class
       call self % energyMap % print(outFile)
       resArrayShape(1) = self % energyN
 
-      ! If MGxs clerk has a space map print map information
+      ! If TransportXS clerk has a space map print map information
       if (allocated(self % spaceMap)) then
         call self % spaceMap % print(outFile)
         resArrayShape(2:(self % spaceMap % dimensions() + 1)) = self % spaceMap % binArrayShape()
@@ -577,65 +569,6 @@ module MGxsClerk_class
       end do
       call outFile % endArray()
 
-      name = 'transportOutScatter'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(transOS(1,i),transOS(2,i))
-      end do
-      call outFile % endArray()
-
-      name = 'capture'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(sigmaC(1,i),sigmaC(2,i))
-      end do
-      call outFile % endArray()
-
-      name = 'fission'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(sigmaF(1,i),sigmaF(2,i))
-      end do
-      call outFile % endArray()
-
-      name = 'nuFission'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(nuBar(1,i),nuBar(2,i))
-      end do
-      call outFile % endArray()
-
-      name = 'Chi'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(chiT(1,i),chiT(2,i))
-      end do
-      call outFile % endArray()
-
-      resArrayShape(1) = resArrayShape(1) * self % energyN
-      name = 'P0'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(P0(1,i),P0(2,i))
-      end do
-      call outFile % endArray()
-
-      name = 'P1'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(P1(1,i),P1(2,i))
-      end do
-      call outFile % endArray()
-
-      name = 'prod'
-      call outFile % startArray(name, resArrayShape)
-      do i=1,product(resArrayShape)
-        call outFile % addResult(prod(1,i),prod(2,i))
-      end do
-      call outFile % endArray()
-
-      call outFile % endBlock()
-
     end subroutine print
 
     !!
@@ -644,11 +577,11 @@ module MGxsClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine display(self, mem)
-      class(MGxsClerk), intent(in)  :: self
+      class(TransportXSClerk), intent(in)  :: self
       type(scoreMemory), intent(in) :: mem
 
-      print *, 'MGxsClerk does not support display yet'
+      print *, 'TransportXSClerk does not support display yet'
 
     end subroutine display
 
-  end module MGxsClerk_class
+  end module TransportXSClerk_class

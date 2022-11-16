@@ -5,7 +5,7 @@ add_sources(./tallyClerk_inter.f90
             ./collisionClerk_class.f90
             ./collisionProbabilityClerk_class.f90
             ./surfaceCurrentClerk_class.f90
-            ./MGxsClerk_class.f90
+            ./TransportXSClerk_class.f90
             ./trackClerk_class.f90
             ./keffAnalogClerk_class.f90
             ./keffImplicitClerk_class.f90
