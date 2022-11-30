@@ -29,7 +29,9 @@ module surfaceCurrentClerk_class
     !!
     !! Private Members:
     !!   map      -> Map to segment the space
-    !!   N        -> Number of Bins
+    !!   NSpace   -> Number of spatial Bins
+    !!   NEnergy  -> Number of energy Bins
+    !!   spacing  -> Spacing of the spatial bins
     !!
     !! Interface:
     !!   tallyClerk Interface
@@ -38,43 +40,17 @@ module surfaceCurrentClerk_class
     !!
     !!  clerkName {
     !!      type surfaceCurrentClerk;
-    !!      spaceMap {
-    !!        type multiMap;
-    !!        spacing (0.2, 0.2, 0.2);
-    !!        maps (mapx mapy mapz);
-    !!        mapx {
-    !!          type spaceMap;
-    !!          axis x;
-    !!          grid lin;
-    !!          min -10.0;
-    !!          max 10.0;
-    !!          N 10;
-    !!        }
-    !!        mapy {
-    !!          type spaceMap;
-    !!          axis y;
-    !!          grid lin;
-    !!          min -10.0;
-    !!          max 10.0;
-    !!          N 10;
-    !!        }
-    !!        mapz {
-    !!          type spaceMap;
-    !!          axis z;
-    !!          grid lin;
-    !!          min -10.0;
-    !!          max 10.0;
-    !!          N 10;
-    !!        }
-    !!      }
-    !!    }
-    !!  }
+    !!      spacing (0.2, 0.2, 0.2);
+    !!      energyMap { energyMap definition }
+    !!      spaceMap { uniform spaceMap definition }
     !!
     type, public, extends(tallyClerk) :: surfaceCurrentClerk
       private
       !! Map defining the discretisation
-      class(tallyMap), allocatable             :: map
-      integer(shortInt)                        :: N = 0 !! Number of bins
+      class(tallyMap), allocatable             :: spaceMap
+      class(tallyMap), allocatable             :: energyMap
+      integer(shortInt)                        :: NSpace = 0
+      integer(shortInt)                        :: NEnergy = 0
       real(defReal), dimension(:), allocatable :: spacing
 
 
@@ -105,12 +81,14 @@ module surfaceCurrentClerk_class
     !!
     !! Surface current result class
     !!   Stored in column first order
-    !!    dim1 -> 1 is J_{x+1/2, y, z}, 2 is J_{x, y+1/2, z}, 3 is J_{x, y, z+1/2}
-    !!    dim2 -> 1 is values; 2 is STDs
+    !!    dim1 -> energy group
+    !!    dim2 -> 1 is J_{x+1/2, y, z}, 2 is J_{x, y+1/2, z}, 3 is J_{x, y, z+1/2}
+    !!    dim3 -> 1 is values; 2 is STDs
     !!
-    type,public, extends( tallyResult) :: SJResult
-      integer(shortInt)                           :: N  = 0
-      real(defReal), dimension(:,:,:),allocatable :: JM ! Current matrix
+    type,public, extends(tallyResult) :: SJResult
+      integer(shortInt)                           :: NEnergy  = 0
+      integer(shortInt)                           :: NSpace  = 0
+      real(defReal), dimension(:, :,:,:),allocatable :: JM ! Current matrix
     end type SJResult
 
   contains
@@ -130,7 +108,8 @@ module surfaceCurrentClerk_class
       call self % setName(name)
 
       ! Read maps
-      call new_tallyMap(self % map, dict % getDictPtr('spaceMap'))
+      call new_tallyMap(self % energyMap, dict % getDictPtr('energyMap'))
+      call new_tallyMap(self % spaceMap, dict % getDictPtr('spaceMap'))
 
       call dict % get(self % spacing, 'spacing')
 
@@ -138,7 +117,8 @@ module surfaceCurrentClerk_class
         call fatalError(Here, "SurfaceCurrentClerk requires size('spacing') == 3")
       end if
 
-      self % N = self % map % bins(0)
+      self % NSpace = self % spaceMap % bins(0)
+      self % NEnergy = self % energyMap % bins(0)
 
     end subroutine init
 
@@ -165,8 +145,7 @@ module surfaceCurrentClerk_class
       class(surfaceCurrentClerk), intent(in) :: self
       integer(shortInt)                            :: S
 
-      ! TODO: why not mult by 2 (value, std) and sizeof(Real)
-      S = 3 * self % N
+      S = 3 * self % NEnergy * self % NSpace
 
     end function getSize
 
@@ -179,8 +158,8 @@ module surfaceCurrentClerk_class
       real(defReal),dimension(3), intent(in)    :: start, end
       integer(shortInt), intent(in)             :: dir
       type(particleState)                       :: state
-      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign
-      integer(longInt)                          :: addr, stepIdx
+      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign, energyGroup
+      integer(longInt)                          :: baseAddr, addr, stepIdx
       real(defReal)                             :: surfaceCrossSection, currentContribution
       real(defReal),dimension(3)                :: step, diff
 
@@ -194,6 +173,12 @@ module surfaceCurrentClerk_class
 
       ! No boundaries crossed => no current
       if (coordAtStart == coordAtEnd) return
+
+      ! TODO: can the energy of a particle change during a transport?
+      energyGroup = self % energyMap % map(state)
+      if (energyGroup == 0) return  ! We're not interested in this energy group
+
+      baseAddr = self % getMemAddress() + (self % NSpace * self % NEnergy) * (energyGroup - 1)
 
       diff = end - start
       surfaceCrossSection = (self % spacing(1) * self % spacing(2) * self % spacing(3)) / (self % spacing(dir))
@@ -212,9 +197,9 @@ module surfaceCurrentClerk_class
       ! Score the current between all intermediate surfaces
       do i = 1, abs(coordAtEnd - coordAtStart) - 1
         state % r = start + (i + offsetDueToSign) * step
-        stepIdx = self % map % map(state)
+        stepIdx = self % spaceMap % map(state)
 
-        addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
+        addr = baseAddr + ((dir - 1) * self % NSpace) + stepIdx - 1
         call mem % score(currentContribution, addr)
       end do
 
@@ -222,8 +207,8 @@ module surfaceCurrentClerk_class
       step = end - state % r
 
       state % r = end + offsetDueToSign * step
-      stepIdx = self % map % map(state)
-      addr = self % getMemAddress() + ((dir - 1) * self % N) + stepIdx - 1
+      stepIdx = self % spaceMap % map(state)
+      addr = baseAddr + ((dir - 1) * self % NSpace) + stepIdx - 1
       call mem % score(currentContribution, addr)
 
     end subroutine reportCurrentInDirection
@@ -276,7 +261,7 @@ module surfaceCurrentClerk_class
       class(surfaceCurrentClerk), intent(in)  :: self
       class(tallyResult),allocatable, intent(inout) :: res
       type(scoreMemory), intent(in)                 :: mem
-      integer(shortInt)                             :: i, j
+      integer(shortInt)                             :: i, j, k
       integer(longInt)                              :: addr
       real(defReal)                                 :: val, STD
 
@@ -303,25 +288,28 @@ module surfaceCurrentClerk_class
         class is(SJResult)
           ! Check size and reallocate space if needed
           if (allocated(res % JM)) then
-            if( any(shape(res % JM) /= [3, self % N, 2])) then
+            if( any(shape(res % JM) /= [self % NEnergy, 3, self % NSpace, 2])) then
               deallocate(res % JM)
-              allocate(res % JM(3, self % N, 2))
+              allocate(res % JM(self % NEnergy, 3, self % NSpace, 2))
             end if
           else
-            allocate(res % JM(3, self % N, 2))
+            allocate(res % JM(self % NEnergy, 3, self % NSpace, 2))
           end if
 
           ! Set size of the JM
-          res % N = self % N
+          res % NSpace = self % NSpace
+          res % NEnergy = self % NEnergy
 
           ! Load entries
           addr = self % getMemAddress() - 1
-          do i = 1, 3
-            do j = 1, self % N
-              addr = addr + 1
-              call mem % getResult(val, STD, addr)
-              res % JM(i, j, 1) = val
-              res % JM(i, j, 2) = STD
+          do i = 1, self % NEnergy
+            do j = 1, 3
+              do k = 1, self % NSpace
+                addr = addr + 1
+                call mem % getResult(val, STD, addr)
+                res % JM(i, j, k, 1) = val
+                res % JM(i, j, k, 2) = STD
+              end do
             end do
           end do
 
@@ -359,15 +347,15 @@ module surfaceCurrentClerk_class
       call outFile % startBlock(self % getName())
 
       ! Print map information
-      call self % map % print(outFile)
+      call self % spaceMap % print(outFile)
 
       ! Print surface current matrix
       name = 'JM'
       addr = self % getMemAddress() - 1
 
-      call outFile % startArray(name, [3, self % N])
+      call outFile % startArray(name, [self % NEnergy, 3, self % NSpace])
 
-      do i = 1, 3 * self % N
+      do i = 1, self % getSize()
         addr = addr + 1
         call mem % getResult(val, std, addr)
         call outFile % addResult(val, std)
@@ -389,8 +377,9 @@ module surfaceCurrentClerk_class
       ! Call superclass
       call kill_super(self)
 
-      if(allocated(self % map)) deallocate(self % map)
-      self % N = 0
+      if(allocated(self % spaceMap)) deallocate(self % spaceMap)
+      self % NSpace = 0
+      self % NEnergy = 0
     end subroutine kill
 
 end module surfaceCurrentClerk_class
