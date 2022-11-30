@@ -19,7 +19,8 @@ module surfaceCurrentClerk_test
       private
       type(surfaceCurrentClerk) :: clerk
       type(multiMap)            :: map
-      integer(shortInt)         :: N
+      integer(shortInt)         :: NSpace
+      integer(shortInt)         :: NEnergy
     contains
       procedure :: setUp
       procedure :: tearDown
@@ -44,7 +45,7 @@ module surfaceCurrentClerk_test
 
       state = inState
       scale = 1.0
-      range = this % n / 2
+      range = this % NSpace / 2
 
       print *, ""
       print *, "Surface current matrix"
@@ -54,7 +55,7 @@ module surfaceCurrentClerk_test
             state % r = [0.5 + x * scale, 0.5 + y * scale, 0.5 + z * scale]
             idx = this % map % map(state)
             if (idx /= 0) then
-              print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, idx, 1)
+              print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, 1, idx, 1)
             end if
           end do
         end do
@@ -69,8 +70,21 @@ module surfaceCurrentClerk_test
     subroutine setUp(this)
       class(test_surfaceCurrentClerk), intent(inout) :: this
       type(dictionary)                                     :: dict
-      type(dictionary)                                     :: multiMapDict, mapx, mapy, mapz
+      type(dictionary)                                     :: multiMapDict, mapx, mapy, mapz, energyMap
       character(nameLen)                                   :: name
+
+
+      call energyMap % init(5)
+      call energyMap % store('type', 'energyMap')
+      call energyMap % store('grid', 'lin')
+      call energyMap % store('min', 1.0E-9_defReal)
+      call energyMap % store('max', 20.0_defReal)
+      call energyMap % store('N', 2)
+
+      ! call energyMap % init(3)
+      ! call energyMap % store('type', 'energyMap')
+      ! call energyMap % store('grid', 'predef')
+      ! call energyMap % store('name', 'casmo7')
 
       call mapx % init(6)
       call mapx % store('type', 'spaceMap')
@@ -105,20 +119,23 @@ module surfaceCurrentClerk_test
 
 
       ! Build intput dictionary
-      call dict % init(2)
+      call dict % init(4)
       call dict % store('type','surfaceCurrentClerk')
       call dict % store('spacing', [1.0_defReal, 1.0_defReal, 1.0_defReal])
       call dict % store('spaceMap', multiMapDict)
+      call dict % store('energyMap', energyMap)
 
       name = 'testClerk'
       call this % clerk % init(dict, name)
       call this % map % init(multiMapDict)
-      this % N = 2
+      this % NSpace = 2
+      this % NEnergy = 2
 
       call mapx % kill()
       call mapy % kill()
       call mapz % kill()
       call multiMapDict % kill()
+      call energyMap % kill()
       call dict % kill()
     end subroutine setUp
 
@@ -167,6 +184,7 @@ module surfaceCurrentClerk_test
 
       ! Score some events
       p % type = P_NEUTRON
+      p % E = 0.01_defReal
 
       ! Crosses boundary at x=0.0 in +ve direction with weight 1.0
       p % w = 1.0
@@ -188,18 +206,21 @@ module surfaceCurrentClerk_test
 
       select type(res)
         class is (SJResult)
-          @assertEqual(res % N, (this % N) ** 3)
+          @assertEqual(res % NSpace, (this % NSpace) ** 3)
+          @assertEqual(res % NEnergy, (this % NEnergy))
 
           ! Test current corresponding to the x=0 boundary
           state = p
           state % r = [-0.5, 0.5, 0.5]
           idx = this % map % map(state)
-          @assertEqual(0.75_defReal, res % JM(1, idx, 1), TOL)
+
+          ! TODO: this test fails with UB in the framework??
+          @assertEqual(0.75_defReal, res % JM(1, 1, idx, 1), TOL)
 
           ! Confirm no other currents have been recorded
-          do i=1, (this % N ** 3)
+          do i=1, (this % NEnergy) * ((this % NSpace) ** 3)
             if (i /= idx) then
-              @assertEqual(0.0_defReal, res % JM(1, i, 1), TOL)
+              @assertEqual(0.0_defReal, res % JM(1, 1, i, 1), TOL)
             end if
           end do
         class default
