@@ -13,6 +13,7 @@ module tallyClerkFactory_func
   use collisionClerk_class,            only : collisionClerk
   use collisionProbabilityClerk_class, only : collisionProbabilityClerk
   use surfaceCurrentClerk_class,       only : surfaceCurrentClerk
+  use transportXSClerk_class,          only : transportXSClerk
   use trackClerk_class,                only : trackClerk
   use simpleFMClerk_class,             only : simpleFMClerk
   use dancoffBellClerk_class,          only : dancoffBellClerk
@@ -34,6 +35,7 @@ module tallyClerkFactory_func
                                                                         'collisionClerk           ',&
                                                                         'collisionProbabilityClerk',&
                                                                         'surfaceCurrentClerk      ',&
+                                                                        'transportXSClerk         ',&
                                                                         'trackClerk               ',&
                                                                         'simpleFMClerk            ',&
                                                                         'shannonEntropyClerk      ',&
@@ -100,6 +102,10 @@ contains
 
      case('centreOfMassClerk')
        allocate(centreOfMassClerk :: new)
+       call new % init(dict, name)
+
+     case('transportXSClerk')
+       allocate(transportXSClerk :: new)
        call new % init(dict, name)
 
      !*** NEW TALLY MAP TEMPLATE ***!
