@@ -78,9 +78,9 @@ contains
        allocate(collisionProbabilityClerk :: new)
        call new % init(dict, name)
 
-    case('surfaceCurrentClerk')
-      allocate(surfaceCurrentClerk :: new)
-      call new % init(dict, name)
+     case('surfaceCurrentClerk')
+       allocate(surfaceCurrentClerk :: new)
+       call new % init(dict, name)
 
      case('trackClerk')
        allocate(trackClerk :: new)

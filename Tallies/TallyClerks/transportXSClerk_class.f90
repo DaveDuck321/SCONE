@@ -1,5 +1,5 @@
 
-module TransportXSClerk_class
+module transportXSClerk_class
 
     use numPrecision
     use tallyCodes
@@ -59,13 +59,13 @@ module TransportXSClerk_class
     !!
     !! SAMPLE DICTIOANRY INPUT:
     !!
-    !! myTransportXSClerk {
-    !!   type TransportXSClerk;
+    !! mytransportXSClerk {
+    !!   type transportXSClerk;
     !!   energyMap { energyMap definition }
     !!   # spaceMap  { <other tallyMap definition> } #
     !! }
     !!
-    type, public, extends(tallyClerk) :: TransportXSClerk
+    type, public, extends(tallyClerk) :: transportXSClerk
       private
       ! Filter, Map & Vector of Responses
       class(tallyMap), allocatable      :: spaceMap
@@ -94,7 +94,7 @@ module TransportXSClerk_class
       procedure  :: processResult
       procedure  :: display
 
-    end type TransportXSClerk
+    end type transportXSClerk
 
     !!
     !! multi group cross section result class
@@ -116,10 +116,10 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine init(self, dict, name)
-      class(TransportXSClerk), intent(inout)   :: self
+      class(transportXSClerk), intent(inout)   :: self
       class(dictionary), intent(in)     :: dict
       character(nameLen), intent(in)    :: name
-      character(100), parameter :: Here =' init (TransportXSClerk_class.f90)'
+      character(100), parameter :: Here =' init (transportXSClerk_class.f90)'
 
       ! Load energy map
       if( dict % isPresent('energyMap')) then
@@ -148,7 +148,7 @@ module TransportXSClerk_class
     !! Return to uninitialised state
     !!
     elemental subroutine kill(self)
-      class(TransportXSClerk), intent(inout) :: self
+      class(transportXSClerk), intent(inout) :: self
 
       ! Superclass
       call kill_super(self)
@@ -170,7 +170,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     function validReports(self) result(validCodes)
-      class(TransportXSClerk),intent(in)                :: self
+      class(transportXSClerk),intent(in)                :: self
       integer(shortInt),dimension(:),allocatable :: validCodes
 
       validCodes = [inColl_CODE, outColl_CODE, cycleEnd_CODE]
@@ -183,7 +183,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     elemental function getSize(self) result(S)
-      class(TransportXSClerk), intent(in) :: self
+      class(transportXSClerk), intent(in) :: self
       integer(shortInt)            :: S
 
       S = self % width
@@ -197,7 +197,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine reportInColl(self, p, xsData, mem)
-      class(TransportXSClerk), intent(inout)       :: self
+      class(transportXSClerk), intent(inout)       :: self
       class(particle), intent(in)           :: p
       class(nuclearDatabase), intent(inout) :: xsData
       type(scoreMemory), intent(inout)      :: mem
@@ -254,7 +254,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine reportOutColl(self, p, MT, muL, xsData, mem)
-      class(TransportXSClerk), intent(inout) :: self
+      class(transportXSClerk), intent(inout) :: self
       class(particle), intent(in)             :: p
       integer(shortInt), intent(in)           :: MT
       real(defReal), intent(in)               :: muL
@@ -331,7 +331,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine reportCycleEnd(self, end, mem)
-      class(TransportXSClerk), intent(inout)     :: self
+      class(transportXSClerk), intent(inout)     :: self
       class(particleDungeon), intent(in)  :: end
       type(scoreMemory), intent(inout)    :: mem
       integer(longInt)                    :: addr, N, i, binIdx, enIdx, matIdx
@@ -363,7 +363,7 @@ module TransportXSClerk_class
     !!
     pure subroutine processResult(self, mem, sigmaF_res, sigmaC_res, transpFL_res, transpOS_res, &
                                   nuBar_res, chiTot_res, P0_res, P1_res, prod_res)
-      class(TransportXSClerk), intent(in)     :: self
+      class(transportXSClerk), intent(in)     :: self
       type(scoreMemory), intent(in)    :: mem
       real(defReal), dimension(:,:), allocatable, intent(out) :: sigmaF_res
       real(defReal), dimension(:,:), allocatable, intent(out) :: nuBar_res
@@ -498,7 +498,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     pure subroutine getResult(self, res, mem)
-      class(TransportXSClerk), intent(in)                     :: self
+      class(transportXSClerk), intent(in)                     :: self
       class(tallyResult), allocatable, intent(inout)   :: res
       type(scoreMemory), intent(in)                    :: mem
       integer(shortInt)                                :: N, i, j, k
@@ -529,7 +529,7 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine print(self, outFile, mem)
-      class(TransportXSClerk), intent(in)               :: self
+      class(transportXSClerk), intent(in)               :: self
       class(outputFile), intent(inout)           :: outFile
       type(scoreMemory), intent(in)              :: mem
       integer(shortInt)                          :: i
@@ -577,11 +577,11 @@ module TransportXSClerk_class
     !! See tallyClerk_inter for details
     !!
     subroutine display(self, mem)
-      class(TransportXSClerk), intent(in)  :: self
+      class(transportXSClerk), intent(in)  :: self
       type(scoreMemory), intent(in) :: mem
 
-      print *, 'TransportXSClerk does not support display yet'
+      print *, 'transportXSClerk does not support display yet'
 
     end subroutine display
 
-  end module TransportXSClerk_class
+  end module transportXSClerk_class
