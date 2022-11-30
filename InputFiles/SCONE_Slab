@@ -1,35 +1,134 @@
-type eigenPhysicsPackage; 
+type eigenPhysicsPackage;
 
-pop      15000;
-active   500; 
-inactive 200; 
-XSdata   mg;
-dataType mg; 
+pop      50000;
+active   30;
+inactive 30;
+XSdata   ce;
+dataType ce;
 
-collisionOperator { neutronCE {type neutronCEstd;} 
-                    neutronMG {type neutronMGstd;} 
-                  } 
+source { type pointSource; r (0.0 0.0 0.0); particle neutron; E 0.6E-6; }
+
+collisionOperator { neutronCE {type neutronCEstd;}
+                    neutronMG {type neutronMGstd;}
+                  }
 
 transportOperator { type transportOperatorDT;
-                  } 
+                  }
 
 inactiveTally {
-              } 
+              }
 
-activeTally  {  
-                norm    fiss; 
-                normVal 100;
-                fiss { type collisionClerk; response (fiss); fiss {type macroResponse; MT -6;}}
-	      }
+activeTally  {
+  current {
+    type surfaceCurrentClerk;
+    energyMap {type energyMap; grid predef; name casmo7 ; }
+    spacing (4.0 4.0 4.0);
+    spaceMap {
+      type multiMap;
+      maps (mapx mapy mapz);
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+    }
+  }
 
-geometry { 
+  transportXSClerk {
+    type transportXSClerk;
+    energyMap {type energyMap; grid predef; name casmo7 ; }
+    spaceMap {
+      type multiMap;
+      maps (mapx mapy mapz);
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+    }
+  }
+  fluxMap {
+    type collisionClerk;
+    map {
+      type multiMap;
+      maps (energy mapx mapy mapz);
+      energy {type energyMap; grid predef; name casmo7 ; }
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -10.0;
+        max 10.0;
+        N 5;
+      }
+    }
+    response (flux);
+    flux { type fluxResponse;}
+  }
+}
+
+geometry {
     type geometryStd;
     boundary (0 0 1 1 1 1);
     graph {type shrunk;}
 
     surfaces
     {
-      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (9.4959 10.0 10.0); }  
+      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (500 500 500); }
     }
 
 
@@ -42,35 +141,32 @@ geometry {
 
       root
       {
-	  id 1;
-	  type rootUniverse; 
-          border 1;
-	  fill fuel; 
+        id 1;
+        type rootUniverse;
+        border 1;
+        fill fuel;
       }
-    }   
+    }
 }
 
 nuclearData {
 
-  handles { 
-     ce { type aceNeutronDatabase; aceLibrary /home/mak60/Cases/U235_Compr/XSDAT/JEF311.aceXS;}
-     mg { type baseMgNeutronDatabase; PN P1;} 
+  handles {
+     ce { type aceNeutronDatabase; aceLibrary /home/tom/Downloads/myACE/JEF311.aceXS;}
+     mg { type baseMgNeutronDatabase; PN P1;}
   }
-  
-  
-materials { 
 
-    fuel {  
-      temp       273; 
+
+materials {
+
+    fuel {
+      temp       273;
       composition {
-        92235.03  0.037047; 
-      }   
+        92235.03  0.037047;
+      }
       xsFile ./XS/URRa_2_1_XSS;
-    }	 
+    }
 
-} 
-  
 }
-  
-  
-  
+
+}
