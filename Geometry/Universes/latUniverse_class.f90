@@ -306,7 +306,7 @@ contains
     ! A/0.0 = Infinity (if A > 0.0)
     !
     d = INF
-    ax = 0
+    ax = 1  ! Default axis if all distances are +infty
     do i = 1, 3
       ! Nominator and denominator will have the same sign (by ealier bounds selection)
       test_d = (bounds(i) - r_bar(i)) / u(i)
