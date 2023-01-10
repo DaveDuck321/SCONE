@@ -1,40 +1,44 @@
 module surfaceCurrentClerk_test
 
-    use numPrecision
-    use dictionary_class,                only : dictionary
-    use multiMap_class,                  only : multiMap
-    use outputFile_class,                only : outputFile
-    use particle_class,                  only : particle, particleState, P_NEUTRON
-    use particleDungeon_class,           only : particleDungeon
-    use scoreMemory_class,               only : scoreMemory
-    use surfaceCurrentClerk_class,       only : surfaceCurrentClerk, SJResult
-    use tallyResult_class,               only : tallyResult
-    use testNeutronDatabase_class,       only : testNeutronDatabase
-    use pFUnit_mod
+   use numPrecision
+   use dictionary_class,                only : dictionary
+   use multiMap_class,                  only : multiMap
+   use outputFile_class,                only : outputFile
+   use particle_class,                  only : particle, particleState, P_NEUTRON
+   use particleDungeon_class,           only : particleDungeon
+   use scoreMemory_class,               only : scoreMemory
+   use surfaceCurrentClerk_class,       only : surfaceCurrentClerk, SJResult
+   use tallyResult_class,               only : tallyResult
+   use testNeutronDatabase_class,       only : testNeutronDatabase
+   use pFUnit_mod
 
-    implicit none
+   use tallyMap_inter,             only : tallyMap
+   use tallyMapFactory_func,       only : new_tallyMap
 
-  @testCase
-    type, extends(TestCase) :: test_surfaceCurrentClerk
+   implicit none
+
+   @testCase
+   type, extends(TestCase) :: test_surfaceCurrentClerk
       private
       type(surfaceCurrentClerk) :: clerk
       type(multiMap)            :: map
       integer(shortInt)         :: NSpace
       integer(shortInt)         :: NEnergy
-    contains
+
+   contains
       procedure :: setUp
       procedure :: tearDown
 
       !! (Private) test helper function
       procedure :: printSurfaceCurrents
-    end type test_surfaceCurrentClerk
+   end type test_surfaceCurrentClerk
 
-  contains
+contains
 
-    !!
-    !! Test helper: visualize the surface current
-    !!
-    subroutine printSurfaceCurrents(this, currentMatrix, inState)
+   !!
+   !! Test helper: visualize the surface current
+   !!
+   subroutine printSurfaceCurrents(this, currentMatrix, inState)
       class(test_surfaceCurrentClerk), intent(inout) :: this
       class(SJResult), intent(in)                    :: currentMatrix
       type(particleState), intent(in)                :: inState
@@ -50,24 +54,24 @@ module surfaceCurrentClerk_test
       print *, ""
       print *, "Surface current matrix"
       do x = -range, range
-        do y = -range, range
-          do z = -range, range
-            state % r = [0.5 + x * scale, 0.5 + y * scale, 0.5 + z * scale]
-            idx = this % map % map(state)
-            if (idx /= 0) then
-              print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, 1, idx, 1)
-            end if
-          end do
-        end do
+         do y = -range, range
+            do z = -range, range
+               state % r = [0.5 + x * scale, 0.5 + y * scale, 0.5 + z * scale]
+               idx = this % map % map(state)
+               if (idx /= 0) then
+                  print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, 1, idx, 1)
+               end if
+            end do
+         end do
       end do
 
-    end subroutine printSurfaceCurrents
+   end subroutine printSurfaceCurrents
 
 
-    !!
-    !! Sets up test_surfaceCurrentClerk object we can use in a number of tests
-    !!
-    subroutine setUp(this)
+   !!
+   !! Sets up test_surfaceCurrentClerk object we can use in a number of tests
+   !!
+   subroutine setUp(this)
       class(test_surfaceCurrentClerk), intent(inout) :: this
       type(dictionary)                                     :: dict
       type(dictionary)                                     :: multiMapDict, mapx, mapy, mapz, energyMap
@@ -137,28 +141,28 @@ module surfaceCurrentClerk_test
       call multiMapDict % kill()
       call energyMap % kill()
       call dict % kill()
-    end subroutine setUp
+   end subroutine setUp
 
-    !!
-    !! Kills test_surfaceCurrentClerk object we can use in a number of tests
-    !!
-    subroutine tearDown(this)
+   !!
+   !! Kills test_surfaceCurrentClerk object we can use in a number of tests
+   !!
+   subroutine tearDown(this)
       class(test_surfaceCurrentClerk), intent(inout) :: this
 
       call this % clerk % kill()
 
-    end subroutine tearDown
+   end subroutine tearDown
 
-  !!<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
-  !! PROPER TESTS BEGIN HERE
-  !!<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+   !!<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+   !! PROPER TESTS BEGIN HERE
+   !!<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
 
-    !!
-    !! Test correctness in a simple use case
-    !!
-  @Test
-    subroutine testSimpleUseCase(this)
+   !!
+   !! Test correctness in a simple use case
+   !!
+   @Test
+   subroutine testSimpleUseCase(this)
       class(test_surfaceCurrentClerk), intent(inout) :: this
       type(scoreMemory)                                    :: mem
       type(particle)                                       :: p
@@ -185,6 +189,7 @@ module surfaceCurrentClerk_test
       ! Score some events
       p % type = P_NEUTRON
       p % E = 0.01_defReal
+      p % isMG = .false.
 
       ! Crosses boundary at x=0.0 in +ve direction with weight 1.0
       p % w = 1.0
@@ -205,32 +210,31 @@ module surfaceCurrentClerk_test
       call this % clerk % getResult(res, mem)
 
       select type(res)
-        class is (SJResult)
-          @assertEqual(res % NSpace, (this % NSpace) ** 3)
-          @assertEqual(res % NEnergy, (this % NEnergy))
+       class is (SJResult)
+         @assertEqual(res % NSpace, (this % NSpace) ** 3)
+         @assertEqual(res % NEnergy, (this % NEnergy))
 
-          ! Test current corresponding to the x=0 boundary
-          state = p
-          state % r = [-0.5, 0.5, 0.5]
-          idx = this % map % map(state)
+         ! Test current corresponding to the x=0 boundary
+         state = p
+         state % r = [-0.5, 0.5, 0.5]
+         idx = this % map % map(state)
 
-          ! TODO: this test fails with UB in the framework??
-          @assertEqual(0.75_defReal, res % JM(1, 1, idx, 1), TOL)
+         @assertEqual(0.75_defReal, res % JM(1, 1, idx, 1), TOL)
 
-          ! Confirm no other currents have been recorded
-          do i=1, (this % NEnergy) * ((this % NSpace) ** 3)
+         ! Confirm no other currents have been recorded
+         do i=1, (this % NEnergy) * ((this % NSpace) ** 3)
             if (i /= idx) then
-              @assertEqual(0.0_defReal, res % JM(1, 1, i, 1), TOL)
+               @assertEqual(0.0_defReal, res % JM(1, 1, i, 1), TOL)
             end if
-          end do
-        class default
-          @assertEqual(0, 1)
+         end do
+       class default
+         @assertEqual(0, 1)
       end select
 
       ! Clean
       call xsData % kill()
       call pop % kill()
 
-    end subroutine testSimpleUseCase
+   end subroutine testSimpleUseCase
 
 end module surfaceCurrentClerk_test
