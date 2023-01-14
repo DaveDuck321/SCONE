@@ -362,7 +362,7 @@ module transportXSClerk_class
     !! Calculates the multi-group constants
     !!
     pure subroutine processResult(self, mem, sigmaF_res, sigmaC_res, transpFL_res, transpOS_res, &
-                                  nuBar_res, chiTot_res, P0_res, P1_res, prod_res)
+                                  nuBar_res, chiTot_res, P0_res, P1_res, prod_res, fluxG)
       class(transportXSClerk), intent(in)     :: self
       type(scoreMemory), intent(in)    :: mem
       real(defReal), dimension(:,:), allocatable, intent(out) :: sigmaF_res
@@ -374,8 +374,9 @@ module transportXSClerk_class
       real(defReal), dimension(:,:), allocatable, intent(out) :: P0_res
       real(defReal), dimension(:,:), allocatable, intent(out) :: P1_res
       real(defReal), dimension(:,:), allocatable, intent(out) :: prod_res
+      real(defReal), dimension(:),   allocatable, intent(out) :: fluxG
       real(defReal), dimension(:,:), allocatable  :: delta, deltaStd
-      real(defReal), dimension(:), allocatable    :: total, fluxG, totalStd, fluxGstd
+      real(defReal), dimension(:), allocatable    :: total, totalStd, fluxGstd
       integer(longInt) :: addr, N, Nm, i, j, m
       real(defReal)    :: nuF, cap, fis, flux, chiT, P0, P1, prod, sumChi, &
                           scat, scattEv, nuFstd, capStd, fisStd, fluxStd, chiTstd, &
@@ -503,9 +504,10 @@ module transportXSClerk_class
       type(scoreMemory), intent(in)                    :: mem
       integer(shortInt)                                :: N, i, j, k
       real(defReal), dimension(:,:), allocatable :: sigmaF, sigmaC, nuBar, chiT, P0, P1, prod, transFL, transOS
+      real(defReal), dimension(:), allocatable :: flux
       real(defReal), dimension(:,:), allocatable :: matrix
 
-      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod)
+      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod, flux)
 
       N = self % energyN
       allocate(matrix(self % matN, N))
@@ -537,8 +539,9 @@ module transportXSClerk_class
       character(nameLen)                         :: name
       real(defReal), dimension(:,:), allocatable :: sigmaF, sigmaC, nuBar, chiT, &
                                                     P0, P1, prod, transFL, transOS
+      real(defReal), dimension(:), allocatable   :: flux
 
-      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod)
+      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod, flux)
 
       ! Begin block
       name = 'TransportXS'
@@ -566,6 +569,20 @@ module transportXSClerk_class
       call outFile % startArray(name, resArrayShape)
       do i=1,product(resArrayShape)
         call outFile % addResult(transFL(1,i),transFL(2,i))
+      end do
+      call outFile % endArray()
+
+      name = 'fluxG'
+      call outFile % startArray(name, resArrayShape)
+      do i=1,product(resArrayShape)
+        call outFile % addResult(flux(i), ONE)
+      end do
+      call outFile % endArray()
+
+      name = 'nufission'
+      call outFile % startArray(name, resArrayShape)
+      do i=1,product(resArrayShape)
+        call outFile % addResult(flux(i), ONE)
       end do
       call outFile % endArray()
 
