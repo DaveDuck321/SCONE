@@ -103,6 +103,9 @@ contains
     self % bottom = bounds(1:3)
     self % top    = bounds(4:6)
 
+    print *, self % top
+    print *, self % bottom
+
   end subroutine init
 
   !!
@@ -155,9 +158,6 @@ contains
 
       mat => neutronMaterial_CptrCast(nucData % getMaterial(matIdx))
       if (.not.associated(mat)) call fatalError(Here, "Nuclear data did not return neutron material.")
-
-      ! Resample position if material is not fissile
-      if (.not.mat % isFissile()) cycle
 
       ! Assign basic phase-space coordinates
       p % matIdx   = matIdx
