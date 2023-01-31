@@ -1,8 +1,8 @@
 type eigenPhysicsPackage;
 
-pop      100000;
-active   0;
-inactive 300;
+pop      50000;
+active   200;
+inactive 200;
 XSdata   ce;
 dataType ce;
 
@@ -118,6 +118,38 @@ activeTally  {
     }
     response (flux);
     flux { type fluxResponse;}
+  }
+  transportXS {
+    type transportXSClerk;
+    energyMap {type energyMap; grid lin; min 0.0; max 100; N 10;}
+    spaceMap {
+      type multiMap;
+      maps (mapx mapy mapz);
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+    }
   }
 }
 

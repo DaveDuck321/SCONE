@@ -365,18 +365,18 @@ module transportXSClerk_class
                                   nuBar_res, chiTot_res, P0_res, P1_res, prod_res, fluxG)
       class(transportXSClerk), intent(in)     :: self
       type(scoreMemory), intent(in)    :: mem
-      real(defReal), dimension(:,:), allocatable, intent(out) :: sigmaF_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: nuBar_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: sigmaC_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: transpFL_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: transpOS_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: chiTot_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: P0_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: P1_res
-      real(defReal), dimension(:,:), allocatable, intent(out) :: prod_res
+      real(defReal), dimension(:), allocatable, intent(out) :: sigmaF_res
+      real(defReal), dimension(:), allocatable, intent(out) :: nuBar_res
+      real(defReal), dimension(:), allocatable, intent(out) :: sigmaC_res
+      real(defReal), dimension(:), allocatable, intent(out) :: transpFL_res
+      real(defReal), dimension(:), allocatable, intent(out) :: transpOS_res
+      real(defReal), dimension(:), allocatable, intent(out) :: chiTot_res
+      real(defReal), dimension(:), allocatable, intent(out) :: P0_res
+      real(defReal), dimension(:), allocatable, intent(out) :: P1_res
+      real(defReal), dimension(:), allocatable, intent(out) :: prod_res
       real(defReal), dimension(:),   allocatable, intent(out) :: fluxG
-      real(defReal), dimension(:,:), allocatable  :: delta, deltaStd
-      real(defReal), dimension(:), allocatable    :: total, totalStd, fluxGstd
+      real(defReal), dimension(:,:), allocatable  :: delta
+      real(defReal), dimension(:), allocatable    :: total, fluxGstd
       integer(longInt) :: addr, N, Nm, i, j, m
       real(defReal)    :: nuF, cap, fis, flux, chiT, P0, P1, prod, sumChi, &
                           scat, scattEv, nuFstd, capStd, fisStd, fluxStd, chiTstd, &
@@ -385,15 +385,14 @@ module transportXSClerk_class
       N = self % energyN
       Nm = self % matN
       ! Allocate arrays for MG xss
-      allocate(sigmaF_res(2,N*Nm), sigmaC_res(2,N*Nm), nuBar_res(2,N*Nm), chiTot_res(2,N*Nm), &
-               P0_res(2,N*N*Nm), P1_res(2,N*N*Nm), prod_res(2,N*N*Nm), transpFL_res(2,N*Nm), transpOS_res(2,N*Nm), &
-               total(N*Nm) , fluxG(N*Nm), delta(Nm, N), totalStd(N*Nm) , fluxGstd(N*Nm), deltaStd(Nm, N) )
+      allocate(sigmaF_res(N*Nm), sigmaC_res(N*Nm), nuBar_res(N*Nm), chiTot_res(N*Nm), &
+               P0_res(N*N*Nm), P1_res(N*N*Nm), prod_res(N*N*Nm), transpFL_res(N*Nm), transpOS_res(N*Nm), &
+               total(N*Nm) , fluxG(N*Nm), delta(Nm, N) , fluxGstd(N*Nm))
 
       ! Loop over all materials and energies
       sumChi = 0
       m = 1
       delta = ZERO
-      deltaStd = ZERO
       do i = 1, N*Nm
         ! Retrieve results from memory
         addr = self % getMemAddress() + self % width * (i - 1) - 1
@@ -401,45 +400,37 @@ module transportXSClerk_class
         call mem % getResult(cap,  capStd,  addr + CAPT)
         call mem % getResult(scat, scatStd, addr + SCATT)
         call mem % getResult(flux, fluxStd, addr + FLX)
-        call mem % getResult(nuF,  nuFstd,  addr + NUFISS)
+        call mem % getResult(nuF,  nuFstd,  addr + NUFISS) ! HERE
         call mem % getResult(chiT, chiTstd, addr + CHI)
-        call mem % getResult(scattEv, scattEvStd, addr + SCATT_EV)
+        call mem % getResult(scattEv, scattEvStd, addr + SCATT_EV) ! HERE
         ! Calculate MG constants
         ! Account for the risk of NaNs by division by zero
         if (flux == ZERO) then
-          sigmaC_res(1,i) = ZERO
-          sigmaC_res(2,i) = ZERO
+          sigmaC_res(i) = ZERO
           scatXS    = ZERO
           scatXSstd = ZERO
         else
-          sigmaC_res(1,i) = cap/flux
-          sigmaC_res(2,i) = sigmaC_res(1,i) * sqrt((capStd/cap)**2 + (fluxStd/flux)**2)
+          sigmaC_res(i) = cap/flux
           scatXS    = scat/flux
           scatXSstd = scatXS * sqrt((scatStd/scat)**2 + (fluxStd/flux)**2)
         end if
         ! Calculate fission production term
         if (fis == ZERO) then
-          sigmaF_res(1,i) = ZERO
-          sigmaF_res(2,i) = ZERO
-          nuBar_res(1,i) = ZERO
-          nuBar_res(2,i) = ZERO
+          sigmaF_res(i) = ZERO
+          nuBar_res(i) = ZERO
         else
-          sigmaF_res(1,i) = fis/flux
-          sigmaF_res(2,i) = sigmaF_res(1,i) * sqrt((fisStd/fis)**2 + (fluxStd/flux)**2)
-          nuBar_res(1,i)  = nuF/fis
-          nuBar_res(2,i) = nuBar_res(1,i) * sqrt((nuFstd/nuF)**2 + (fisStd/fis)**2)
+          sigmaF_res(i) = fis/flux
+          nuBar_res(i)  = nuF/fis
         end if
         ! Calculate and normalise fission spectrum
-        chiTot_res(1,i) = chiT
-        chiTot_res(2,i) = chiTstd
+        chiTot_res(i) = chiT
         sumChi = sumChi + chiT
         if (mod(i,N) == 0) then
-          if (sumChi /= ZERO) chiTot_res(1:2,(i+1-N):i) = chiTot_res(1:2,(i+1-N):i)/sumChi
+          if (sumChi /= ZERO) chiTot_res((i+1-N):i) = chiTot_res((i+1-N):i)/sumChi
           sumChi = 0
         end if
         ! Store total xs and flux
-        total(i) = sigmaC_res(1,i) + scatXS + sigmaF_res(1,i)
-        totalStd(i) = sqrt(sigmaC_res(2,i)**2 + sigmaF_res(1,i)**2 + scatXSstd**2)
+        total(i) = sigmaC_res(i) + scatXS + sigmaF_res(i)
         fluxG(i) = flux
         fluxGstd(i) = fluxStd
         ! Loop over outgoing energies
@@ -450,30 +441,24 @@ module transportXSClerk_class
           call mem % getResult(prod, prodStd, addr + SCATT_EV + 2*N + j)
           ! Calculate scattering matrices
           if (P0 == ZERO) then
-            P0_res(1,N*(i-1)+j) = ZERO
-            P0_res(2,N*(i-1)+j) = ZERO
-            P1_res(1,N*(i-1)+j) = ZERO
-            P1_res(2,N*(i-1)+j) = ZERO
-            prod_res(1,N*(i-1)+j) = ONE
-            prod_res(2,N*(i-1)+j) = ZERO
+            P0_res(N*(i-1)+j) = ZERO
+            P1_res(N*(i-1)+j) = ZERO
+            prod_res(N*(i-1)+j) = ONE
           else
-            P0_res(1,N*(i-1)+j) = P0/scattEv*scatXS
-            P0_res(2,N*(i-1)+j) = P0_res(1,N*(i-1)+j) * sqrt((P0std/P0)**2 + (scattEvStd/scattEv)**2 + (scatXSstd/scatXS)**2)
-            P1_res(1,N*(i-1)+j) = P1/scattEv*scatXS
-            P1_res(2,N*(i-1)+j) = P1_res(1,N*(i-1)+j) * sqrt((P1std/P1)**2 + (scattEvStd/scattEv)**2 + (scatXSstd/scatXS)**2)
-            prod_res(1,N*(i-1)+j) = prod/P0
-            prod_res(2,N*(i-1)+j) = prod_res(1,N*(i-1)+j) * sqrt((prodStd/prod)**2 + (P0std/P0)**2)
+            P0_res(N*(i-1)+j) = P0/scattEv*scatXS
+            P1_res(N*(i-1)+j) = P1/scattEv*scatXS
+            prod_res(N*(i-1)+j) = prod/P0
             delta(m,j) = delta(m,j) + P1/scattEv*scat
-            deltaStd(m,j) = sqrt(deltaStd(m,j)**2 + ((P1std/P1)**2 + (scattEvStd/scattEv)**2 + &
-                            (scatStd/scat)**2) * (P1/scattEv*scat)**2)
           end if
 
         end do
 
+
+        ! XXX: P0 * prod_res is scattering production cross section
+        ! XXX: transpFL and transpOS are the same quantity
         if (mod(i, N) == 0) m = m + 1
 
-        transpOS_res(1,i) = total(i) - sum(P1_res(1,(N*(i-1)+1):(N*(i-1)+N)))
-        transpOS_res(2,i) = sqrt(totalStd(i)**2 + sum(P1_res(2,(N*(i-1)+1):(N*(i-1)+N))**2))
+        transpOS_res(i) = total(i) - sum(P1_res((N*(i-1)+1):(N*(i-1)+N)))
 
       end do
 
@@ -481,12 +466,9 @@ module transportXSClerk_class
       do i = 1, Nm
         do j = 1, N
           if (fluxG(N*(i-1)+j) == ZERO) then
-            transpFL_res(1,N*(i-1)+j) = ZERO
-            transpFL_res(2,N*(i-1)+j) = ZERO
+            transpFL_res(N*(i-1)+j) = ZERO
           else
-            transpFL_res(1,N*(i-1)+j) = total(N*(i-1)+j) - delta(i,j)/fluxG(N*(i-1)+j)
-            transpFL_res(2,N*(i-1)+j) = sqrt(totalStd(N*(i-1)+j)**2 + ((deltaStd(i,j)/delta(i,j))**2 + &
-                                      (fluxGstd(N*(i-1)+j)/fluxG(N*(i-1)+j))**2) * (delta(i,j)/fluxG(N*(i-1)+j))**2)
+            transpFL_res(N*(i-1)+j) = total(N*(i-1)+j) - delta(i,j)/fluxG(N*(i-1)+j)
           end if
         end do
       end do
@@ -503,7 +485,7 @@ module transportXSClerk_class
       class(tallyResult), allocatable, intent(inout)   :: res
       type(scoreMemory), intent(in)                    :: mem
       integer(shortInt)                                :: N, i, j, k
-      real(defReal), dimension(:,:), allocatable :: sigmaF, sigmaC, nuBar, chiT, P0, P1, prod, transFL, transOS
+      real(defReal), dimension(:), allocatable :: sigmaF, sigmaC, nuBar, chiT, P0, P1, prod, transFL, transOS
       real(defReal), dimension(:), allocatable :: flux
       real(defReal), dimension(:,:), allocatable :: matrix
 
@@ -517,7 +499,7 @@ module transportXSClerk_class
         ! Loop over energies
         do j = 1, N
           ! TODO: HACK!! I only record the transport cross section
-          matrix(i, j) = transFL(1, N-(j-1) + N*(i-1))
+          matrix(i, j) = transFL(N-(j-1) + N*(i-1))
         end do
       end do
 
@@ -537,7 +519,7 @@ module transportXSClerk_class
       integer(shortInt)                          :: i
       integer(shortInt),dimension(:),allocatable :: resArrayShape
       character(nameLen)                         :: name
-      real(defReal), dimension(:,:), allocatable :: sigmaF, sigmaC, nuBar, chiT, &
+      real(defReal), dimension(:), allocatable :: sigmaF, sigmaC, nuBar, chiT, &
                                                     P0, P1, prod, transFL, transOS
       real(defReal), dimension(:), allocatable   :: flux
 
@@ -568,7 +550,7 @@ module transportXSClerk_class
       name = 'transportFluxLimited'
       call outFile % startArray(name, resArrayShape)
       do i=1,product(resArrayShape)
-        call outFile % addResult(transFL(1,i),transFL(2,i))
+        call outFile % addResult(transFL(i), ONE)
       end do
       call outFile % endArray()
 
