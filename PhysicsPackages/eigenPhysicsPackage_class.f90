@@ -55,6 +55,12 @@ module eigenPhysicsPackage_class
   ! Visualisation
   use visualiser_class,               only : visualiser
 
+    ! Tally Maps
+  use tallyMap_inter,             only : tallyMap
+  use tallyMapFactory_func,       only : new_tallyMap
+
+  use iso_fortran_env,   only : IOSTAT_END
+
   implicit none
   private
 
@@ -87,6 +93,8 @@ module eigenPhysicsPackage_class
     integer(shortInt)  :: particleType
     real(defReal)      :: keff_0
     integer(shortInt)  :: bufferSize
+    class(tallyMap), allocatable :: fluxMap
+    real(defReal), dimension(:), allocatable :: finalFlux
 
     ! Calculation components
     type(particleDungeon), pointer :: thisCycle    => null()
@@ -137,7 +145,7 @@ contains
     type(tallyAdmin), pointer,intent(inout)   :: tallyAtch
     integer(shortInt), intent(in)             :: N_cycles
     type(particleDungeon), save               :: buffer
-    integer(shortInt)                         :: i, n, Nstart, Nend, nParticles
+    integer(shortInt)                         :: i, n, Nstart, Nend, nParticles, mapIndex, countIndex
     class(tallyResult),allocatable            :: res
     type(collisionOperator), save             :: collOp
     class(transportOperator),allocatable,save :: transOp
@@ -145,11 +153,22 @@ contains
     type(particle), save                      :: neutron
     type(particleState)                       :: state
     type(particle)                            :: p
-    real(defReal)                             :: k_old, k_new
-    real(defReal)                             :: elapsed_T, end_T, T_toEnd
+    real(defReal)                             :: k_old, k_new, cumulativeWeight, preMass
+    real(defReal)                             :: elapsed_T, end_T, T_toEnd, totalWeight
+    real(defReal),dimension(:),allocatable :: totalBinWeights
+    real(defReal),dimension(:),allocatable :: averageFlux
     integer :: io
     character(100),parameter :: Here ='cycles (eigenPhysicsPackage_class.f90)'
+    logical(defBool),parameter :: calculateDist = .false.
     !$omp threadprivate(neutron, buffer, collOp, transOp, pRNG)
+
+    allocate(totalBinWeights(self % fluxMap % bins(0)))
+    allocate(averageFlux(self % fluxMap % bins(0)))
+    cumulativeWeight = 0
+    do mapIndex = 1, self % fluxMap % bins(0)
+      totalBinWeights(mapIndex) = 0
+      averageFlux(mapIndex) = 0
+    end do
 
     !$omp parallel
     ! Create particle buffer
@@ -171,9 +190,44 @@ contains
     call timerStart(self % timerMain)
 
     do i=1,N_cycles
+      Nstart = self % thisCycle % popSize()
+
+      ! Update CMFD weights
+      cumulativeWeight = 0
+      do mapIndex = 1, self % fluxMap % bins(0)
+        totalBinWeights(mapIndex) = 0
+      end do
+
+      do n = 1, Nstart
+        p = self % thisCycle % get(n)
+        state = p
+        mapIndex = self % fluxMap % map (state)
+        if (mapIndex /= 0) then
+          cumulativeWeight = cumulativeWeight + state % wgt
+          totalBinWeights(mapIndex) = totalBinWeights(mapIndex) + state % wgt
+        end if
+      end do
+      print *, cumulativeWeight
+
+      if (calculateDist) then
+        ! Get total weight in each bin
+        averageFlux = averageFlux + totalBinWeights / cumulativeWeight
+      else
+        do n = 1, Nstart
+          p = self % thisCycle % get(n)
+          state = p
+          mapIndex = self % fluxMap % map (state)
+          if (mapIndex /= 0) then
+            state % wgt = state % wgt * ((cumulativeWeight * self % finalFlux(mapIndex)) / totalBinWeights(mapIndex))
+            call self % thisCycle % replace(state, n)
+          else
+            print *, state % r
+          end if
+        end do
+
+      end if
 
       ! Send start of cycle report
-      Nstart = self % thisCycle % popSize()
       call tally % reportCycleStart(self % thisCycle)
 
       nParticles = self % thisCycle % popSize()
@@ -214,7 +268,6 @@ contains
           else
             call buffer % release(neutron)
           end if
-
         end do bufferLoop
 
       end do gen
@@ -240,21 +293,6 @@ contains
       self % temp_dungeon => self % nextCycle
       self % nextCycle    => self % thisCycle
       self % thisCycle    => self % temp_dungeon
-
-
-      ! if (mod(i, 20) == 0) then
-      !   open(newunit=io, file="positions.txt", action="write",position='append')
-      !   nParticles = self % thisCycle % popSize()
-      !   do n = 1, nParticles
-
-      !     ! Obtain particle current cycle dungeon
-      !     p = self % thisCycle % get(n)
-      !     state = p
-      !     write(io, *) state % r, ", ", state % wgt
-      !   end do
-      !   write(io, *) ""
-      !   close(io)
-      ! end if
 
       ! Obtain estimate of k_eff
       call tallyAtch % getResult(res,'keff')
@@ -297,6 +335,18 @@ contains
 
     ! Load elapsed time
     self % time_transport = self % time_transport + elapsed_T
+
+    if (calculateDist) then
+      open(newunit=io, file="finalFlux", action="write")
+      do n = 1, self % fluxMap % bins(0)
+        write(io, *) averageFlux(n)
+      end do
+      write(io, *) ""
+      close(io)
+    end if
+
+    deallocate(totalBinWeights)
+    deallocate(averageFlux)
 
 
   end subroutine cycles
@@ -378,7 +428,7 @@ contains
     class(dictionary), intent(inout)          :: dict
     class(dictionary),pointer                 :: tempDict
     type(dictionary)                          :: locDict1, locDict2
-    integer(shortInt)                         :: seed_temp
+    integer(shortInt)                         :: seed_temp, errorCode, readStat, index
     integer(longInt)                          :: seed
     character(10)                             :: time
     character(8)                              :: date
@@ -386,7 +436,12 @@ contains
     character(nameLen)                        :: nucData, energy, geomName
     type(outputFile)                          :: test_out
     type(visualiser)                          :: viz
+    integer(shortInt)        :: fluxFile
+    character(99)            :: errorMsg
+    real(defReal) :: number, sum
+
     character(100), parameter :: Here ='init (eigenPhysicsPackage_class.f90)'
+    logical(defBool), parameter :: calculateDist = .false.
 
     call cpu_time(self % CPU_time_start)
 
@@ -396,6 +451,44 @@ contains
     call dict % get( self % N_active,'active')
     call dict % get( nucData, 'XSdata')
     call dict % get( energy, 'dataType')
+
+    call new_tallyMap(self % fluxMap, dict % getDictPtr('fluxMap'))
+
+    if (.not. calculateDist) then
+      ! Get the final flux
+      open(newunit = fluxFile, &
+          file = "finalFlux", &
+          status='old', &
+          action='read', &
+          iostat = errorCode, &
+          iomsg = errorMsg)
+
+      if(errorCode /= 0) call fatalError(Here, "File Error: "//trim(adjustl(errorMsg)))
+
+      index = 1
+      do
+        read(unit = fluxFile, fmt="(E5.30)", iostat=readStat) number
+        if(readStat == IOSTAT_END) exit
+        index = index + 1;
+      end do
+
+      rewind(unit = fluxFile)
+      allocate(self % finalFlux(index + 1));
+
+      index = 1
+      sum = 0
+      do
+        read(unit = fluxFile, fmt="(E5.30)", iostat=readStat) number
+        if(readStat == IOSTAT_END) exit
+
+        self % finalFlux (index) = number
+        index = index + 1;
+        sum = sum + number
+      end do
+
+      self % finalFlux = self % finalFlux / sum
+      print *, self % finalFlux
+    end if
 
     ! Parallel buffer size
     call dict % getOrDefault( self % bufferSize, 'buffer', 10)
