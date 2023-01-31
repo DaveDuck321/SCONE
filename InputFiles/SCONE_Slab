@@ -1,121 +1,119 @@
 type eigenPhysicsPackage;
 
-pop      50000;
-active   30;
-inactive 30;
+pop      100000;
+active   0;
+inactive 300;
 XSdata   ce;
 dataType ce;
 
 outputFormat asciiJSON;
 
-source { type pointSource; r (0.0 0.0 0.0); particle neutron; E 0.6E-6; }
+source { type fissionSource; }
 
-collisionOperator { neutronCE {type neutronCEstd;}
+collisionOperator {
+                    neutronCE {type neutronCEstd;}
                     neutronMG {type neutronMGstd;}
                   }
 
 transportOperator { type transportOperatorDT;
                   }
 
+    fluxMap {
+      type multiMap;
+      maps (energy mapx mapy mapz);
+      energy {type energyMap; grid lin; min 0.0; max 100; N 10;}
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+    }
+
 inactiveTally {
-              }
+  entropy {
+    type shannonEntropyClerk;
+    cycles 500;
+    map {
+      type multiMap;
+      maps (energy mapx mapy mapz);
+      energy {type energyMap; grid lin; min 0.0; max 100; N 10;}
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -100.0;
+        max 100.0;
+        N 20;
+      }
+    }
+  }
+}
 
 activeTally  {
-  current {
-    type surfaceCurrentClerk;
-    energyMap {type energyMap; grid predef; name casmo7 ; }
-    spacing (4.0 4.0 4.0);
-    spaceMap {
-      type multiMap;
-      maps (mapx mapy mapz);
-      mapx {
-        type spaceMap;
-        axis x;
-        grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
-      }
-      mapy {
-        type spaceMap;
-        axis y;
-        grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
-      }
-      mapz {
-        type spaceMap;
-        axis z;
-        grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
-      }
-    }
-  }
-
-  transportXSClerk {
-    type transportXSClerk;
-    energyMap {type energyMap; grid predef; name casmo7 ; }
-    spaceMap {
-      type multiMap;
-      maps (mapx mapy mapz);
-      mapx {
-        type spaceMap;
-        axis x;
-        grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
-      }
-      mapy {
-        type spaceMap;
-        axis y;
-        grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
-      }
-      mapz {
-        type spaceMap;
-        axis z;
-        grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
-      }
-    }
-  }
   fluxMap {
     type collisionClerk;
     map {
       type multiMap;
       maps (energy mapx mapy mapz);
-      energy {type energyMap; grid predef; name casmo7 ; }
+      energy {type energyMap; grid lin; min 0.0; max 100; N 10;}
       mapx {
         type spaceMap;
         axis x;
         grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
+        min -100.0;
+        max 100.0;
+        N 20;
       }
       mapy {
         type spaceMap;
         axis y;
         grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
+        min -100.0;
+        max 100.0;
+        N 20;
       }
       mapz {
         type spaceMap;
         axis z;
         grid lin;
-        min -10.0;
-        max 10.0;
-        N 5;
+        min -100.0;
+        max 100.0;
+        N 20;
       }
     }
     response (flux);
@@ -125,12 +123,12 @@ activeTally  {
 
 geometry {
     type geometryStd;
-    boundary (0 0 1 1 1 1);
+    boundary (0 0 0 0 0 0);
     graph {type shrunk;}
 
     surfaces
     {
-      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (500 500 500); }
+      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (100 100 100); }
     }
 
 
@@ -154,8 +152,8 @@ geometry {
 nuclearData {
 
   handles {
-     ce { type aceNeutronDatabase; aceLibrary /home/tom/Downloads/myACE/JEF311.aceXS;}
-     mg { type baseMgNeutronDatabase; PN P1;}
+     ce { type aceNeutronDatabase; aceLibrary /home/tom/NuclearData/myACE/JEF311.aceXS;}
+     mg { type baseMgNeutronDatabase; PN P0;}
   }
 
 
