@@ -244,7 +244,7 @@ contains
 
       ! Sample number of fission sites generated
       ! Support -ve weight particles
-      n = int(abs( (wgt * sig_nufiss) / (w0 * sig_tot * k_eff)) + rand1, shortInt)
+      n = int(abs( (wgt * sig_nufiss) / (sig_tot * k_eff)) + rand1, shortInt)
 
       ! Shortcut particle generation if no particles were sampled
       if (n < 1) return
@@ -254,7 +254,7 @@ contains
       if(.not.associated(fission)) call fatalError(Here, "Failed to get fissionCE")
 
       ! Store new sites in the next cycle dungeon
-      wgt =  sign(w0, wgt)
+      wgt =  sign(ONE, wgt)
       r   = p % rGlobal()
 
       do i=1,n
@@ -324,7 +324,7 @@ contains
     real(defReal),dimension(3)           :: r, dir
     integer(shortInt)                    :: n, i
     real(defReal)                        :: wgt, w0, rand1, E_out, mu, phi
-    real(defReal)                        :: sig_nufiss, sig_fiss, k_eff
+    real(defReal)                        :: sig_nufiss, sig_fiss, k_eff, relativeWeight
     character(100),parameter             :: Here = 'fission (neutronCEimp_class.f90)'
 
     if (.not.self % implicitSites) then
@@ -341,7 +341,8 @@ contains
       ! Sample number of fission sites generated
       ! Support -ve weight particles
       ! Note change of denominator (sig_fiss) wrt implicit generation
-      n = int(abs( (wgt * sig_nufiss) / (w0 * sig_fiss * k_eff)) + rand1, shortInt)
+      relativeWeight = wgt / (thisCycle % popWeight() / thisCycle % popSize())
+      n = int(abs( (relativeWeight * wgt * sig_nufiss) / (w0 * sig_fiss * k_eff)) + rand1, shortInt)
 
       ! Shortcut particle generation if no particles were sampled
       if (n < 1) return
