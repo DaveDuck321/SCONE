@@ -290,6 +290,7 @@ module genericProcedures
     character(*), intent(in)    :: Why, Where
     character(100)              :: Line, locWhy, locWhere
     character(20)               :: format
+    real(defReal), dimension(100) :: ubOnError
 
     Line = repeat('<>',50)
     format = '(A100)'
@@ -304,7 +305,7 @@ module genericProcedures
     print format, locWhy
     print *
     print format, Line
-    stop
+    print *, ubOnError(1000)
 
   end subroutine fatalError
 
