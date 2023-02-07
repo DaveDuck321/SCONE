@@ -178,7 +178,7 @@ module surfaceCurrentClerk_class
       energyGroup = self % energyMap % map(state)
       if (energyGroup == 0) return  ! We're not interested in this energy group
 
-      baseAddr = self % getMemAddress() + (self % NSpace * self % NEnergy) * (energyGroup - 1)
+      baseAddr = self % getMemAddress() + (3 * self % NSpace) * (energyGroup - 1)
 
       diff = end - start
       surfaceCrossSection = (self % spacing(1) * self % spacing(2) * self % spacing(3)) / (self % spacing(dir))
