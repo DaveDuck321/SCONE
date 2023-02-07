@@ -233,9 +233,11 @@ module transportXSClerk_class
 
       totalXS  = xss % total
       flux = p % w / totalXS
+
       ! Calculate reaction rates
       nuFissXS = xss % nuFission * flux
       captXS   = xss % capture * flux
+      ! TODO: calculate fission h->g
       fissXS   = xss % fission * flux
       scattXS  = (xss % elasticScatter + xss % inelasticScatter) * flux
 
@@ -362,7 +364,8 @@ module transportXSClerk_class
     !! Calculates the multi-group constants
     !!
     pure subroutine processResult(self, mem, sigmaF_res, sigmaC_res, transpFL_res, transpOS_res, &
-                                  nuBar_res, chiTot_res, P0_res, P1_res, prod_res, fluxG)
+                                  nuBar_res, chiTot_res, P0_res, P1_res, prod_res, fluxG, &
+                                  scatteringProductionXS, fissionProductionXS)
       class(transportXSClerk), intent(in)     :: self
       type(scoreMemory), intent(in)    :: mem
       real(defReal), dimension(:), allocatable, intent(out) :: sigmaF_res
@@ -374,20 +377,23 @@ module transportXSClerk_class
       real(defReal), dimension(:), allocatable, intent(out) :: P0_res
       real(defReal), dimension(:), allocatable, intent(out) :: P1_res
       real(defReal), dimension(:), allocatable, intent(out) :: prod_res
-      real(defReal), dimension(:),   allocatable, intent(out) :: fluxG
+      real(defReal), dimension(:), allocatable, intent(out) :: fluxG
+      real(defReal), dimension(:), allocatable, intent(out) :: scatteringProductionXS
+      real(defReal), dimension(:), allocatable, intent(out) :: fissionProductionXS
       real(defReal), dimension(:,:), allocatable  :: delta
-      real(defReal), dimension(:), allocatable    :: total, fluxGstd
-      integer(longInt) :: addr, N, Nm, i, j, m
+      real(defReal), dimension(:), allocatable    :: total
+      integer(longInt) :: addr, N, Nm, i, j, k, m, materialEnergyId
       real(defReal)    :: nuF, cap, fis, flux, chiT, P0, P1, prod, sumChi, &
                           scat, scattEv, nuFstd, capStd, fisStd, fluxStd, chiTstd, &
-                          P0std, P1std, prodStd, scatStd, scattEvStd, scatXS, scatXSstd
+                          P0std, P1std, prodStd, scatStd, scattEvStd, scatXS, scatXSstd, &
+                          fissionXs, chiSum
 
       N = self % energyN
       Nm = self % matN
       ! Allocate arrays for MG xss
       allocate(sigmaF_res(N*Nm), sigmaC_res(N*Nm), nuBar_res(N*Nm), chiTot_res(N*Nm), &
                P0_res(N*N*Nm), P1_res(N*N*Nm), prod_res(N*N*Nm), transpFL_res(N*Nm), transpOS_res(N*Nm), &
-               total(N*Nm) , fluxG(N*Nm), delta(Nm, N) , fluxGstd(N*Nm))
+               total(N*Nm) , fluxG(N*Nm), delta(Nm, N), scatteringProductionXS(N*N*Nm), fissionProductionXS(N*N*Nm))
 
       ! Loop over all materials and energies
       sumChi = 0
@@ -400,9 +406,9 @@ module transportXSClerk_class
         call mem % getResult(cap,  capStd,  addr + CAPT)
         call mem % getResult(scat, scatStd, addr + SCATT)
         call mem % getResult(flux, fluxStd, addr + FLX)
-        call mem % getResult(nuF,  nuFstd,  addr + NUFISS) ! HERE
-        call mem % getResult(chiT, chiTstd, addr + CHI)
-        call mem % getResult(scattEv, scattEvStd, addr + SCATT_EV) ! HERE
+        call mem % getResult(nuF,  nuFstd,  addr + NUFISS)
+        call mem % getResult(chiT, chiTstd, addr + CHI)  ! Probably mapping fission in cell -> energy level at given index
+        call mem % getResult(scattEv, scattEvStd, addr + SCATT_EV)
         ! Calculate MG constants
         ! Account for the risk of NaNs by division by zero
         if (flux == ZERO) then
@@ -432,7 +438,6 @@ module transportXSClerk_class
         ! Store total xs and flux
         total(i) = sigmaC_res(i) + scatXS + sigmaF_res(i)
         fluxG(i) = flux
-        fluxGstd(i) = fluxStd
         ! Loop over outgoing energies
         do j = 1, N
           ! Get results
@@ -453,13 +458,25 @@ module transportXSClerk_class
 
         end do
 
-
-        ! XXX: P0 * prod_res is scattering production cross section
-        ! XXX: transpFL and transpOS are the same quantity
         if (mod(i, N) == 0) m = m + 1
 
         transpOS_res(i) = total(i) - sum(P1_res((N*(i-1)+1):(N*(i-1)+N)))
 
+      end do
+
+      ! XXX: P0 * prod_res is scattering production cross section
+      ! XXX: transpFL and transpOS are the same quantity
+      scatteringProductionXS = P0_res * prod_res
+
+      ! Calculate fission production rate
+      do i = 1, Nm
+        do j = 1, N
+          materialEnergyId = N * (i - 1) + j
+          fissionXs = sigmaF_res(materialEnergyId)
+          do k = 1, N
+            fissionProductionXS(N * (materialEnergyId - 1) + k) = fissionXs * chiTot_res( N * (i - 1) + k)
+          end do
+        end do
       end do
 
       ! Calculate transport cross section with in-scatter approximation
@@ -485,11 +502,13 @@ module transportXSClerk_class
       class(tallyResult), allocatable, intent(inout)   :: res
       type(scoreMemory), intent(in)                    :: mem
       integer(shortInt)                                :: N, i, j, k
-      real(defReal), dimension(:), allocatable :: sigmaF, sigmaC, nuBar, chiT, P0, P1, prod, transFL, transOS
+      real(defReal), dimension(:), allocatable :: sigmaF, sigmaC, nuBar, chiT, P0, P1, prod, transFL, &
+                                                  transOS, fissionProductionXS, scatteringProductionXS
       real(defReal), dimension(:), allocatable :: flux
       real(defReal), dimension(:,:), allocatable :: matrix
 
-      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod, flux)
+      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, &
+                                prod, flux, scatteringProductionXS, fissionProductionXS)
 
       N = self % energyN
       allocate(matrix(self % matN, N))
@@ -520,10 +539,11 @@ module transportXSClerk_class
       integer(shortInt),dimension(:),allocatable :: resArrayShape
       character(nameLen)                         :: name
       real(defReal), dimension(:), allocatable :: sigmaF, sigmaC, nuBar, chiT, &
-                                                    P0, P1, prod, transFL, transOS
-      real(defReal), dimension(:), allocatable   :: flux
+                                                    P0, P1, prod, transFL, transOS, &
+                                                    scatteringProductionXS, flux, fissionProductionXS
 
-      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, prod, flux)
+      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1,&
+                                prod, flux, scatteringProductionXS, fissionProductionXS)
 
       ! Begin block
       name = 'TransportXS'
@@ -547,26 +567,37 @@ module transportXSClerk_class
       end if
 
       ! Print results
-      name = 'transportFluxLimited'
+      name = 'transportXS'
       call outFile % startArray(name, resArrayShape)
       do i=1,product(resArrayShape)
         call outFile % addResult(transFL(i), ONE)
       end do
       call outFile % endArray()
 
-      name = 'fluxG'
+      deallocate(resArrayShape)
+      allocate(resArrayShape(self % spaceMap % dimensions() + 2))
+
+      ! Scattering production matrix shap
+      resArrayShape(1) = self % energyN
+      resArrayShape(2) = self % energyN
+      if (allocated(self % spaceMap)) then
+        resArrayShape(3:(self % spaceMap % dimensions() + 2)) = self % spaceMap % binArrayShape()
+      end if
+
+      name = 'scatteringProductionXS'
       call outFile % startArray(name, resArrayShape)
       do i=1,product(resArrayShape)
-        call outFile % addResult(flux(i), ONE)
+        call outFile % addResult(scatteringProductionXS(i), ONE)
       end do
       call outFile % endArray()
 
-      name = 'nufission'
+      name = 'fissionProductionXS'
       call outFile % startArray(name, resArrayShape)
       do i=1,product(resArrayShape)
-        call outFile % addResult(flux(i), ONE)
+        call outFile % addResult(fissionProductionXS(i), ONE)
       end do
       call outFile % endArray()
+      call outFile % endBlock()
 
     end subroutine print
 
