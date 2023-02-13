@@ -59,6 +59,7 @@ contains
       if (p % matIdx() == OUTSIDE_FILL) then
         p % fate = LEAK_FATE
         p % isDead = .true.
+        call tally % reportTrans(p)
         return
       end if
 

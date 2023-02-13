@@ -61,7 +61,7 @@ module surfaceCurrentClerk_class
       procedure  :: getSize
 
       ! File reports and check status -> run-time procedures
-      procedure  :: reportInColl
+      procedure  :: reportTrans
       procedure  :: reportCycleEnd
 
       ! Overwrite default run-time result procedure
@@ -132,7 +132,7 @@ module surfaceCurrentClerk_class
       integer(shortInt),dimension(:),allocatable  :: validCodes
 
       ! TODO: use trans_CODE here instead
-      validCodes = [inColl_CODE, cycleEnd_Code]
+      validCodes = [trans_CODE, cycleEnd_Code]
 
     end function validReports
 
@@ -214,11 +214,11 @@ module surfaceCurrentClerk_class
     end subroutine reportCurrentInDirection
 
     !!
-    !! Process incoming collision report
+    !! Process incoming transport report
     !!
     !! See tallyClerk_inter for details
     !!
-    subroutine reportInColl(self, p, xsData, mem)
+    subroutine reportTrans(self, p, xsData, mem)
       class(surfaceCurrentClerk), intent(inout) :: self
       class(particle), intent(in)                     :: p
       class(nuclearDatabase),intent(inout)            :: xsData
@@ -230,7 +230,7 @@ module surfaceCurrentClerk_class
       call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 1)
       call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 2)
       call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 3)
-    end subroutine reportInColl
+    end subroutine reportTrans
 
     !!
     !! Process cycle end
