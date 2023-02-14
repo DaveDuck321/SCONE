@@ -24,6 +24,10 @@ module surfaceCurrentClerk_class
     implicit none
     private
 
+    type MapWrapper
+      class(tallyMap), allocatable :: map
+    end type
+
     !!
     !! Surface current tally
     !!
@@ -42,18 +46,21 @@ module surfaceCurrentClerk_class
     !!      type surfaceCurrentClerk;
     !!      spacing (0.2, 0.2, 0.2);
     !!      energyMap { energyMap definition }
-    !!      spaceMap { uniform spaceMap definition }
+    !!      spaceMapX { uniform spaceMap definition }
+    !!      spaceMapY { uniform spaceMap definition }
+    !!      spaceMapZ { uniform spaceMap definition }
+    !! }
     !!
     type, public, extends(tallyClerk) :: surfaceCurrentClerk
       private
       !! Map defining the discretisation
-      class(tallyMap), allocatable             :: spaceMap
+      class(MapWrapper), dimension(:), allocatable :: spaceMaps
       class(tallyMap), allocatable             :: energyMap
+
+      ! Number of spacial memory bins (spaceMap + 1 in each dim)
       integer(shortInt)                        :: NSpace = 0
       integer(shortInt)                        :: NEnergy = 0
       real(defReal), dimension(:), allocatable :: spacing
-
-
     contains
       ! Procedures used during build
       procedure  :: init
@@ -107,9 +114,13 @@ module surfaceCurrentClerk_class
       ! Assign name
       call self % setName(name)
 
+      allocate(self % spaceMaps(3))
+
       ! Read maps
       call new_tallyMap(self % energyMap, dict % getDictPtr('energyMap'))
-      call new_tallyMap(self % spaceMap, dict % getDictPtr('spaceMap'))
+      call new_tallyMap(self % spaceMaps(1) % map, dict % getDictPtr('spaceMapX'))
+      call new_tallyMap(self % spaceMaps(2) % map, dict % getDictPtr('spaceMapY'))
+      call new_tallyMap(self % spaceMaps(3) % map, dict % getDictPtr('spaceMapZ'))
 
       call dict % get(self % spacing, 'spacing')
 
@@ -117,8 +128,13 @@ module surfaceCurrentClerk_class
         call fatalError(Here, "SurfaceCurrentClerk requires size('spacing') == 3")
       end if
 
-      self % NSpace = self % spaceMap % bins(0)
       self % NEnergy = self % energyMap % bins(0)
+
+      ! (xsize + 1) * (ysize + 1) * (zsize + 1)
+      self % NSpace = 1
+      self % NSpace = self % NSpace * (self % spaceMaps(1) % map % bins(0) + 1)
+      self % NSpace = self % NSpace * (self % spaceMaps(2) % map % bins(0) + 1)
+      self % NSpace = self % NSpace * (self % spaceMaps(3) % map % bins(0) + 1)
 
     end subroutine init
 
@@ -149,68 +165,120 @@ module surfaceCurrentClerk_class
 
     end function getSize
 
-
-    subroutine reportCurrentInDirection(self, mem, weight, state_in, start, end, dir)
+    subroutine reportCurrentInDirection(self, mem, weight, state_in, startIn, endIn, dir)
       class(surfaceCurrentClerk), intent(inout) :: self
       type(scoreMemory), intent(inout)          :: mem
       real(defReal), intent(in)                 :: weight
       type(particleState), intent(in)           :: state_in
-      real(defReal),dimension(3), intent(in)    :: start, end
+      real(defReal),dimension(3), intent(in)    :: startIn, endIn
       integer(shortInt), intent(in)             :: dir
       type(particleState)                       :: state
-      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, offsetDueToSign, energyGroup
-      integer(longInt)                          :: baseAddr, addr, stepIdx
+      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, j, energyGroup, maxStepCount
+      integer(longInt)                          :: baseAddr, addr, index, lastIndex, stride
       real(defReal)                             :: surfaceCrossSection, currentContribution
-      real(defReal),dimension(3)                :: step, diff
+      real(defReal),dimension(3)                :: step, diff, startPos, endPos
 
       ! Copy the state to allow mutation
       state = state_in
-      state % r = start
+      state % r = startIn
 
       ! Discretize onto the grid
-      coordAtEnd = floor(end(dir) * (1.0/ (self % spacing(dir))))
-      coordAtStart = floor(start(dir) * (1.0/ (self % spacing(dir))))
+      coordAtStart = self % spaceMaps(dir) % map % map(state)
+      state % r = endIn
+      coordAtEnd = self % spaceMaps(dir) % map % map(state)
 
       ! No boundaries crossed => no current
       if (coordAtStart == coordAtEnd) return
+
+      if (coordAtStart == 0) then
+        call fatalError("reportCurrentInDirection", "particle starting from illegal position")
+      end if
 
       ! TODO: can the energy of a particle change during a transport?
       energyGroup = self % energyMap % map(state)
       if (energyGroup == 0) return  ! We're not interested in this energy group
 
-      baseAddr = self % getMemAddress() + (3 * self % NSpace) * (energyGroup - 1)
+      ! Index (x, y, z, dir, energy) (energy has the largest stride)
+      baseAddr = self % getMemAddress() + (energyGroup - 1) * (3 * self % NSpace) + (dir - 1) * (self % NSpace)
 
-      diff = end - start
+      diff = endIn - startIn
       surfaceCrossSection = (self % spacing(1) * self % spacing(2) * self % spacing(3)) / (self % spacing(dir))
       currentContribution = (weight * diff(dir)) / (norm2(diff) * surfaceCrossSection)
 
+      ! If we leave the mesh, we should only run for a single extra iteration
+      if (coordAtEnd == 0) then
+        if (diff(dir) > 0) then
+          coordAtEnd = self % spaceMaps(dir) % map % bins(0) + 1
+        else
+          coordAtEnd = 0
+        end if
+      end if
 
+      ! Ensure that all math is positive
       if (diff(dir) > 0) then
-        offsetDueToSign = -1
+        startPos = startIn
+        endPos = endIn
       else
-        offsetDueToSign = 0
+        ! Swap the start and end coordinates
+        startPos = endIn
+        endPos = startIn
       end if
 
       ! Normalized so step(dir) == spacing(dir)
       step = (diff / diff(dir)) * (self % spacing)
 
       ! Score the current between all intermediate surfaces
-      do i = 1, abs(coordAtEnd - coordAtStart) - 1
-        state % r = start + (i + offsetDueToSign) * step
-        stepIdx = self % spaceMap % map(state)
+      !    NOTE: we are always going from left to right
+      if (step(dir) < 0) then
+        call fatalError("reportCurrentInDirection", "negative step")
+      end if
 
-        addr = baseAddr + ((dir - 1) * self % NSpace) + stepIdx - 1
-        call mem % score(currentContribution, addr)
+      ! Do first step to initialize problem
+      stride = 1
+      state % r = startPos
+      lastIndex = 0
+      do j = 1, size(self % spaceMaps)
+        index = self % spaceMaps(j) % map % map(state)
+        lastIndex = lastIndex + stride * index
+        stride = stride * (self % spaceMaps(j) % map % bins(0) + 1)
+
+        ! Indicies outside of mapping
+        if (index == 0 .and. j /= dir) then
+          lastIndex = -1
+          exit
+        end if
       end do
+      if (stride /= self % NSpace) then
+        call fatalError("reportCurrentInDirection", "bad index calculation")
+      end if
 
-      ! Score the current into the last surface (without stepping past the end point)
-      step = end - state % r
+      ! Step through mesh and record current
+      do i = 1, abs(coordAtEnd - coordAtStart)
+        state % r = startPos + i * step
 
-      state % r = end + offsetDueToSign * step
-      stepIdx = self % spaceMap % map(state)
-      addr = baseAddr + ((dir - 1) * self % NSpace) + stepIdx - 1
-      call mem % score(currentContribution, addr)
+        if (lastIndex /= -1) then
+          addr = baseAddr + lastIndex
+          call mem % score(currentContribution, addr)
+        end if
 
+        ! Map in space
+        stride = 1
+        lastIndex = 0
+        do j = 1, size(self % spaceMaps)
+          index = self % spaceMaps(j) % map % map(state)
+          lastIndex = lastIndex + stride * index
+          stride = stride * (self % spaceMaps(j) % map % bins(0) + 1)
+
+          ! Indicies outside of mapping
+          if (index == 0 .and. j /= dir) then
+            lastIndex = -1
+            exit
+          end if
+        end do
+        if (stride /= self % NSpace) then
+          call fatalError("reportCurrentInDirection", "bad index calculation")
+        end if
+      end do
     end subroutine reportCurrentInDirection
 
     !!
@@ -347,13 +415,15 @@ module surfaceCurrentClerk_class
       call outFile % startBlock(self % getName())
 
       ! Print map information
-      call self % spaceMap % print(outFile)
+      do i=1, size(self % spaceMaps)
+        call self % spaceMaps(i) % map % print(outFile)
+      end do
 
       ! Print surface current matrix
       name = 'JM'
       addr = self % getMemAddress() - 1
 
-      call outFile % startArray(name, [self % NEnergy, 3, self % NSpace])
+      call outFile % startArray(name, [self % NSpace, 3, self % NEnergy])
 
       do i = 1, self % getSize()
         addr = addr + 1
@@ -377,7 +447,7 @@ module surfaceCurrentClerk_class
       ! Call superclass
       call kill_super(self)
 
-      if(allocated(self % spaceMap)) deallocate(self % spaceMap)
+      if(allocated(self % spaceMaps)) deallocate(self % spaceMaps)
       self % NSpace = 0
       self % NEnergy = 0
     end subroutine kill
