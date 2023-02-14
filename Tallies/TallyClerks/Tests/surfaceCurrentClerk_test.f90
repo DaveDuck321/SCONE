@@ -2,8 +2,8 @@ module surfaceCurrentClerk_test
 
    use numPrecision
    use dictionary_class,                only : dictionary
-   use multiMap_class,                  only : multiMap
    use outputFile_class,                only : outputFile
+   use spaceMap_class,                  only : spaceMap
    use particle_class,                  only : particle, particleState, P_NEUTRON
    use particleDungeon_class,           only : particleDungeon
    use scoreMemory_class,               only : scoreMemory
@@ -21,7 +21,9 @@ module surfaceCurrentClerk_test
    type, extends(TestCase) :: test_surfaceCurrentClerk
       private
       type(surfaceCurrentClerk) :: clerk
-      type(multiMap)            :: map
+      type(spaceMap)            :: mapX
+      type(spaceMap)            :: mapY
+      type(spaceMap)            :: mapZ
       integer(shortInt)         :: NSpace
       integer(shortInt)         :: NEnergy
 
@@ -31,6 +33,7 @@ module surfaceCurrentClerk_test
 
       !! (Private) test helper function
       procedure :: printSurfaceCurrents
+      procedure :: getMapIndex
    end type test_surfaceCurrentClerk
 
 contains
@@ -57,7 +60,7 @@ contains
          do y = -range, range
             do z = -range, range
                state % r = [0.5 + x * scale, 0.5 + y * scale, 0.5 + z * scale]
-               idx = this % map % map(state)
+               idx = this % getMapIndex(state)
                if (idx /= 0) then
                   print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, 1, idx, 1)
                end if
@@ -68,13 +71,23 @@ contains
    end subroutine printSurfaceCurrents
 
 
+   function getMapIndex(this, state) result(index)
+      class(test_surfaceCurrentClerk), intent(inout) :: this
+      type(particleState), intent(in)                :: state
+      integer(shortInt)                              :: index
+
+
+      index =  this % mapX % map(state)
+      index = index + (this % mapX % bins(0) + 1) * this % mapY % map(state)
+      index = index + ((this % mapX % bins(0) + 1) * (this % mapY % bins(0) + 1)) * this % mapZ % map(state)
+   end function getMapIndex
    !!
    !! Sets up test_surfaceCurrentClerk object we can use in a number of tests
    !!
    subroutine setUp(this)
       class(test_surfaceCurrentClerk), intent(inout) :: this
       type(dictionary)                                     :: dict
-      type(dictionary)                                     :: multiMapDict, mapx, mapy, mapz, energyMap
+      type(dictionary)                                     :: mapx, mapy, mapz, energyMap
       character(nameLen)                                   :: name
 
 
@@ -84,11 +97,6 @@ contains
       call energyMap % store('min', 1.0E-9_defReal)
       call energyMap % store('max', 20.0_defReal)
       call energyMap % store('N', 2)
-
-      ! call energyMap % init(3)
-      ! call energyMap % store('type', 'energyMap')
-      ! call energyMap % store('grid', 'predef')
-      ! call energyMap % store('name', 'casmo7')
 
       call mapx % init(6)
       call mapx % store('type', 'spaceMap')
@@ -114,31 +122,26 @@ contains
       call mapz % store('max', 1.0_defReal)
       call mapz % store('N', 2)
 
-      call multiMapDict % init(5)
-      call multiMapDict % store('type','multiMap')
-      call multiMapDict % store('maps', ['mapx', 'mapy', 'mapz'])
-      call multiMapDict % store('mapx', mapx)
-      call multiMapDict % store('mapy', mapy)
-      call multiMapDict % store('mapz', mapz)
-
-
       ! Build intput dictionary
       call dict % init(4)
       call dict % store('type','surfaceCurrentClerk')
       call dict % store('spacing', [1.0_defReal, 1.0_defReal, 1.0_defReal])
-      call dict % store('spaceMap', multiMapDict)
+      call dict % store('spaceMapX', mapx)
+      call dict % store('spaceMapY', mapy)
+      call dict % store('spaceMapZ', mapz)
       call dict % store('energyMap', energyMap)
 
       name = 'testClerk'
       call this % clerk % init(dict, name)
-      call this % map % init(multiMapDict)
-      this % NSpace = 2
+      call this % mapX % init(mapx)
+      call this % mapY % init(mapy)
+      call this % mapZ % init(mapz)
+      this % NSpace = 3  ! 2 cells, 3 boundaries
       this % NEnergy = 2
 
       call mapx % kill()
       call mapy % kill()
       call mapz % kill()
-      call multiMapDict % kill()
       call energyMap % kill()
       call dict % kill()
    end subroutine setUp
@@ -175,7 +178,6 @@ contains
       real(defReal), dimension(3), parameter :: DEFAULT_VELOCITY = [0.0, 0.0, 0.0]
       real(defReal), parameter :: TOL = 1.0E-7
 
-
       ! Create score memory
       call mem % init(int(this % clerk % getSize(), longInt) , 1, batchSize = 1)
       call this % clerk % setMemAddress(1_longInt)
@@ -195,13 +197,13 @@ contains
       p % w = 1.0
       p % preCollision % r = [-0.1_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([0.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
-      call this % clerk % reportInColl(p, xsData, mem)
+      call this % clerk % reportTrans(p, xsData, mem)
 
       ! Crosses boundary at x=0.0 in -ve direction with weight 0.25
       p % w = 0.25
       p % preCollision % r = [0.1_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([-0.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
-      call this % clerk % reportInColl(p, xsData, mem)
+      call this % clerk % reportTrans(p, xsData, mem)
 
       ! Close cycle
       call mem % closeCycle(ONE)
@@ -214,16 +216,18 @@ contains
          @assertEqual(res % NSpace, (this % NSpace) ** 3)
          @assertEqual(res % NEnergy, (this % NEnergy))
 
+         state = p
+
          ! Test current corresponding to the x=0 boundary
          state = p
          state % r = [-0.5, 0.5, 0.5]
-         idx = this % map % map(state)
+         idx = this % getMapIndex(state)
 
-         @assertEqual(0.75_defReal, res % JM(1, 1, idx, 1), TOL)
+         @assertEqual(0.75_defReal, res % JM(1, 1, idx + 1, 1), TOL)
 
          ! Confirm no other currents have been recorded
          do i=1, (this % NEnergy) * ((this % NSpace) ** 3)
-            if (i /= idx) then
+            if (i /= idx + 1) then
                @assertEqual(0.0_defReal, res % JM(1, 1, i, 1), TOL)
             end if
          end do
@@ -236,5 +240,79 @@ contains
       call pop % kill()
 
    end subroutine testSimpleUseCase
+
+
+   !!
+   !! Test correctness for boundary conditions
+   !!
+   @Test
+   subroutine testBoundaryConditions(this)
+      class(test_surfaceCurrentClerk), intent(inout) :: this
+      type(scoreMemory)                                    :: mem
+      type(particle)                                       :: p
+      type(particleState)                                  :: state
+      type(particleDungeon)                                :: pop
+      type(testNeutronDatabase)                            :: xsData
+      real(defReal)                                        :: val
+      integer(shortInt)                                    :: i, idx
+      class(tallyResult), allocatable                      :: res
+      real(defReal), dimension(3), parameter :: DEFAULT_VELOCITY = [0.0, 0.0, 0.0]
+      real(defReal), parameter :: TOL = 1.0E-7
+
+
+      ! Create score memory
+      call mem % init(int(this % clerk % getSize(), longInt) , 1, batchSize = 1)
+      call this % clerk % setMemAddress(1_longInt)
+
+      ! Create test transport Nuclear Data
+      call xsData % build(1.1_defReal, fissionXS = 1.1_defReal, nuFissionXS = 2.0_defReal)
+
+      ! Create one particle that can be made to collide
+      ! repeatedly in several materials
+
+      ! Score some events
+      p % type = P_NEUTRON
+      p % E = 0.01_defReal
+      p % isMG = .false.
+
+      ! Crosses boundary at x=-1.0 in -ve direction with weight 1.0
+      p % w = 1.0
+      p % preCollision % r = [-0.9_defReal, 0.1_defReal, 0.1_defReal]
+      call p % coords % init([-1.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
+      call this % clerk % reportTrans(p, xsData, mem)
+
+      ! Crosses boundary at x=1.0 in +ve direction with weight 0.5
+      p % w = 0.5
+      p % preCollision % r = [0.9_defReal, 0.1_defReal, 0.1_defReal]
+      call p % coords % init([1.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
+      call this % clerk % reportTrans(p, xsData, mem)
+
+      ! Close cycle
+      call mem % closeCycle(ONE)
+
+      ! Verify run-time results
+      call this % clerk % getResult(res, mem)
+
+      select type(res)
+       class is (SJResult)
+         state = p
+
+         ! Test current corresponding to the x=-1 boundary
+         state % r = [-0.5, 0.5, 0.5]
+         idx = this % getMapIndex(state) - 1  ! x-stride is 1... index-1 is the boundary
+         @assertEqual(-1.0_defReal, res % JM(1, 1, idx + 1, 1), TOL)
+
+         state % r = [0.5, 0.5, 0.5]
+         idx = this % getMapIndex(state)  ! each cell contains the current of the rhs boundary
+         @assertEqual(0.5_defReal, res % JM(1, 1, idx + 1, 1), TOL)
+       class default
+         @assertEqual(0, 1)
+      end select
+
+      ! Clean
+      call xsData % kill()
+      call pop % kill()
+
+   end subroutine testBoundaryConditions
 
 end module surfaceCurrentClerk_test
