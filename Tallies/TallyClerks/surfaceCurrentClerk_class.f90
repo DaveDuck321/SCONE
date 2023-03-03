@@ -173,7 +173,7 @@ module surfaceCurrentClerk_class
       real(defReal),dimension(3), intent(in)    :: startIn, endIn
       integer(shortInt), intent(in)             :: dir
       type(particleState)                       :: state
-      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, j, energyGroup, maxStepCount
+      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, j, energyGroup
       integer(longInt)                          :: baseAddr, addr, index, lastIndex, stride
       real(defReal)                             :: surfaceCrossSection, currentContribution
       real(defReal),dimension(3)                :: step, diff, startPos, endPos
@@ -248,7 +248,7 @@ module surfaceCurrentClerk_class
           exit
         end if
       end do
-      if (stride /= self % NSpace) then
+      if (stride /= self % NSpace .and. lastIndex /= -1) then
         call fatalError("reportCurrentInDirection", "bad index calculation")
       end if
 
@@ -275,9 +275,6 @@ module surfaceCurrentClerk_class
             exit
           end if
         end do
-        if (stride /= self % NSpace) then
-          call fatalError("reportCurrentInDirection", "bad index calculation")
-        end if
       end do
     end subroutine reportCurrentInDirection
 
@@ -292,12 +289,15 @@ module surfaceCurrentClerk_class
       class(nuclearDatabase),intent(inout)            :: xsData
       type(scoreMemory), intent(inout)                :: mem
       type(particleState)                             :: state
-      character(100), parameter :: Here = 'reportInColl (surfaceCurrentClerk_class.f90)'
+      character(100), parameter :: Here = 'reportTrans (surfaceCurrentClerk_class.f90)'
+
+      ! XXX: reflective boundary logged wrong, look at direction flip
+      ! XXX: periodic boundaries: particle behind where its pointing
 
       state = p
-      call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 1)
-      call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 2)
-      call self % reportCurrentInDirection(mem, p % w, state, p % preCollision % r, state % r, 3)
+      call self % reportCurrentInDirection(mem, p % w, state, p % preTransition % r, state % r, 1)
+      call self % reportCurrentInDirection(mem, p % w, state, p % preTransition % r, state % r, 2)
+      call self % reportCurrentInDirection(mem, p % w, state, p % preTransition % r, state % r, 3)
     end subroutine reportTrans
 
     !!
@@ -406,7 +406,7 @@ module surfaceCurrentClerk_class
       class(surfaceCurrentClerk), intent(in) :: self
       class(outputFile), intent(inout)             :: outFile
       type(scoreMemory), intent(in)                :: mem
-      integer(shortInt)                            :: i
+      integer(shortInt)                            :: i, xsize, ysize, zsize
       integer(longInt)                             :: addr
       real(defReal)                                :: val, std
       character(nameLen)                           :: name
@@ -423,7 +423,10 @@ module surfaceCurrentClerk_class
       name = 'JM'
       addr = self % getMemAddress() - 1
 
-      call outFile % startArray(name, [self % NSpace, 3, self % NEnergy])
+      xsize = self % spaceMaps(1) % map % bins(0) + 1
+      ysize = self % spaceMaps(2) % map % bins(0) + 1
+      zsize = self % spaceMaps(3) % map % bins(0) + 1
+      call outFile % startArray(name, [xsize, ysize, zsize, 3, self % NEnergy])
 
       do i = 1, self % getSize()
         addr = addr + 1
