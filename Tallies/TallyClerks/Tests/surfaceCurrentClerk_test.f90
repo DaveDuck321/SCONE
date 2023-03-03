@@ -195,13 +195,13 @@ contains
 
       ! Crosses boundary at x=0.0 in +ve direction with weight 1.0
       p % w = 1.0
-      p % preCollision % r = [-0.1_defReal, 0.1_defReal, 0.1_defReal]
+      p % preTransition % r = [-0.1_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([0.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
       call this % clerk % reportTrans(p, xsData, mem)
 
       ! Crosses boundary at x=0.0 in -ve direction with weight 0.25
       p % w = 0.25
-      p % preCollision % r = [0.1_defReal, 0.1_defReal, 0.1_defReal]
+      p % preTransition % r = [0.1_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([-0.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
       call this % clerk % reportTrans(p, xsData, mem)
 
@@ -277,13 +277,13 @@ contains
 
       ! Crosses boundary at x=-1.0 in -ve direction with weight 1.0
       p % w = 1.0
-      p % preCollision % r = [-0.9_defReal, 0.1_defReal, 0.1_defReal]
+      p % preTransition % r = [-0.9_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([-1.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
       call this % clerk % reportTrans(p, xsData, mem)
 
       ! Crosses boundary at x=1.0 in +ve direction with weight 0.5
       p % w = 0.5
-      p % preCollision % r = [0.9_defReal, 0.1_defReal, 0.1_defReal]
+      p % preTransition % r = [0.9_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([1.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
       call this % clerk % reportTrans(p, xsData, mem)
 
