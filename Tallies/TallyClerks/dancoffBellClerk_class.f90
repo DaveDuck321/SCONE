@@ -19,6 +19,7 @@ module dancoffBellClerk_class
   ! Nuclear Data
   use materialMenu_mod,           only : mm_matIdx => matIdx
   use nuclearDatabase_inter,      only : nuclearDatabase
+  use geometry_inter, only : geometry;
 
   implicit none
   private
@@ -178,11 +179,12 @@ contains
   !!
   !! See tallyClerk_inter for details
   !!
-  subroutine reportTrans(self, p, xsData, mem)
+  subroutine reportTrans(self, p, xsData, mem, geom)
     class(dancoffBellClerk), intent(inout) :: self
     class(particle), intent(in)            :: p
     class(nuclearDatabase),intent(inout)   :: xsData
     type(scoreMemory), intent(inout)       :: mem
+    class(geometry), intent(in) :: geom
     real(defReal)                          :: SigmaTot
     integer(shortInt)                      :: T_end, T_start
     real(defReal)                          :: w_end

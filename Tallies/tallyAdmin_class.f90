@@ -17,6 +17,7 @@ module tallyAdmin_class
   ! Nuclear Data Interface
   use nuclearDataReg_mod,     only : ndReg_get => get
   use nuclearDatabase_inter,  only : nuclearDatabase
+  use geometry_inter, only : geometry
 
   implicit none
   private
@@ -559,16 +560,17 @@ contains
   !! Errors:
   !!   None
   !!
-  recursive subroutine reportTrans(self, p)
+  recursive subroutine reportTrans(self, p, geom)
     class(tallyAdmin), intent(inout) :: self
     class(particle), intent(in)      :: p
+    class(geometry), intent(in) :: geom
     integer(shortInt)                :: i, idx
     class(nuclearDatabase),pointer   :: xsData
     character(100), parameter :: Here = "reportTrans (tallyAdmin_class.f90)"
 
     ! Call attachment
     if(associated(self % atch)) then
-      call reportTrans(self % atch, p)
+      call reportTrans(self % atch, p, geom)
     end if
 
     ! Get Data
@@ -577,7 +579,7 @@ contains
     ! Go through all clerks that request the report
     do i=1,self % transClerks % getSize()
       idx = self % transClerks % get(i)
-      call self % tallyClerks(idx) % reportTrans(p, xsData, self % mem)
+      call self % tallyClerks(idx) % reportTrans(p, xsData, self % mem, geom)
 
     end do
 

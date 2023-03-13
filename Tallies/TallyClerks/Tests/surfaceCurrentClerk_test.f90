@@ -10,6 +10,9 @@ module surfaceCurrentClerk_test
    use surfaceCurrentClerk_class,       only : surfaceCurrentClerk, SJResult
    use tallyResult_class,               only : tallyResult
    use testNeutronDatabase_class,       only : testNeutronDatabase
+   use geometryStd_class, only : geometryStd
+   use geometry_inter, only : geometry
+   use materialMenu_mod,  only : mm_nameMap => nameMap
    use pFUnit_mod
 
    use tallyMap_inter,             only : tallyMap
@@ -26,6 +29,7 @@ module surfaceCurrentClerk_test
       type(spaceMap)            :: mapZ
       integer(shortInt)         :: NSpace
       integer(shortInt)         :: NEnergy
+      class(geometry), allocatable :: geom
 
    contains
       procedure :: setUp
@@ -88,8 +92,43 @@ contains
       class(test_surfaceCurrentClerk), intent(inout) :: this
       type(dictionary)                                     :: dict
       type(dictionary)                                     :: mapx, mapy, mapz, energyMap
+      type(dictionary) :: geometryDict, surfaces, cells, universes, rootUniverse, squareSurface, graph
       character(nameLen)                                   :: name
 
+      call rootUniverse % init(4)
+      call rootUniverse % store('id', 1)
+      call rootUniverse % store('type', 'rootUniverse')
+      call rootUniverse % store('border', 1)
+      call rootUniverse % store('fill', 'fuel')
+
+      call universes % init(1)
+      call universes % store('root', rootUniverse)
+
+      call cells % init(0)
+
+      call squareSurface % init(4)
+      call squareSurface % store('id', 1)
+      call squareSurface % store('type', 'box')
+      call squareSurface % store('origin', [0.0_defReal, 0.0_defReal, 0.0_defReal])
+      call squareSurface % store('halfwidth', [1.0_defReal, 1.0_defReal, 1.0_defReal])
+
+      call surfaces % init(1)
+      call surfaces % store('squareBound', squareSurface)
+
+      call graph % init(1)
+      call graph % store("type", "shrunk")
+
+      call geometryDict % init(6)
+      call geometryDict % store("type", "geometryStd")
+      call geometryDict % store("boundary", [0.0_defReal, 0.0_defReal, 0.0_defReal, 0.0_defReal, 0.0_defReal, 0.0_defReal])
+      call geometryDict % store("graph", graph)
+      call geometryDict % store("surfaces", surfaces)
+      call geometryDict % store("cells", cells)
+      call geometryDict % store("universes", rootUniverse)
+
+      allocate(geometryStd :: this % geom)
+
+      call this % geom % init(geometryDict, mm_nameMap, .true.)
 
       call energyMap % init(5)
       call energyMap % store('type', 'energyMap')
@@ -197,13 +236,13 @@ contains
       p % w = 1.0
       p % preTransition % r = [-0.1_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([0.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
-      call this % clerk % reportTrans(p, xsData, mem)
+      call this % clerk % reportTrans(p, xsData, mem, this % geom)
 
       ! Crosses boundary at x=0.0 in -ve direction with weight 0.25
       p % w = 0.25
       p % preTransition % r = [0.1_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([-0.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
-      call this % clerk % reportTrans(p, xsData, mem)
+      call this % clerk % reportTrans(p, xsData, mem, this % geom)
 
       ! Close cycle
       call mem % closeCycle(ONE)
@@ -279,13 +318,13 @@ contains
       p % w = 1.0
       p % preTransition % r = [-0.9_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([-1.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
-      call this % clerk % reportTrans(p, xsData, mem)
+      call this % clerk % reportTrans(p, xsData, mem, this % geom)
 
       ! Crosses boundary at x=1.0 in +ve direction with weight 0.5
       p % w = 0.5
       p % preTransition % r = [0.9_defReal, 0.1_defReal, 0.1_defReal]
       call p % coords % init([1.1_defReal, 0.1_defReal, 0.1_defReal], DEFAULT_VELOCITY)
-      call this % clerk % reportTrans(p, xsData, mem)
+      call this % clerk % reportTrans(p, xsData, mem, this % geom)
 
       ! Close cycle
       call mem % closeCycle(ONE)

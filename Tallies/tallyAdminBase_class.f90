@@ -89,7 +89,7 @@ module tallyAdminBase_class
   public :: init
   public :: print
   public :: kill
-    
+
 contains
   !!
   !! Process incoming collision report
@@ -206,9 +206,10 @@ contains
   !! Transition must be a straight line
   !! Pre and Post direction is assumed the same (aligned with r_pre -> r_post vector)
   !!
-  subroutine reportTrans(self,p)
+  subroutine reportTrans(self,p, geom)
     class(tallyAdminBase), intent(inout) :: self
     class(particle), intent(in)          :: p
+    class(geometry), intent(in) :: geom
     integer(shortInt)                    :: i, idx
 
 !    ! Go through all clerks that request the report

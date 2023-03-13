@@ -10,6 +10,7 @@ module tallyClerk_inter
 
   use scoreMemory_class,     only : scoreMemory
   use tallyResult_class,     only : tallyResult, tallyResultEmpty
+  use geometry_inter, only : geometry
 
   ! Nuclear Data Interface
   use nuclearDatabase_inter, only : nuclearDatabase
@@ -305,11 +306,12 @@ contains
   !! Errors:
   !!   Depend on specific Clerk
   !!
-  subroutine reportTrans(self, p, xsData, mem)
+  subroutine reportTrans(self, p, xsData, mem, geom)
     class(tallyClerk), intent(inout)      :: self
     class(particle), intent(in)           :: p
     class(nuclearDatabase), intent(inout) :: xsData
     type(scoreMemory), intent(inout)      :: mem
+    class(geometry), intent(in) :: geom
     character(100),parameter  :: Here = 'reportTrans (tallyClerk_inter.f90)'
 
     call fatalError(Here,'Report was send to an instance that does not support it.')

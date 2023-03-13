@@ -15,6 +15,7 @@ module tallyClerkSlot_class
 
   ! Nuclear Data Interface
   use nuclearDatabase_inter,  only : nuclearDatabase
+  use geometry_inter, only : geometry
 
   implicit none
   private
@@ -217,14 +218,15 @@ contains
   !!
   !! See tallyClerk_inter for details
   !!
-  subroutine reportTrans(self, p, xsData, mem)
+  subroutine reportTrans(self, p, xsData, mem, geom)
     class(tallyClerkSlot), intent(inout)  :: self
     class(particle), intent(in)           :: p
     class(nuclearDatabase), intent(inout) :: xsData
     type(scoreMemory), intent(inout)      :: mem
+    class(geometry), intent(in) :: geom
 
     ! Pass call to instance in the slot
-    call self % slot % reportTrans(p, xsData, mem)
+    call self % slot % reportTrans(p, xsData, mem, geom)
 
   end subroutine reportTrans
 

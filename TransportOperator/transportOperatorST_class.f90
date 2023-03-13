@@ -92,7 +92,7 @@ contains
 
     end do STLoop
 
-    call tally % reportTrans(p)
+    call tally % reportTrans(p, self % geom)
 
   end subroutine surfaceTracking
 

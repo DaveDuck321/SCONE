@@ -59,7 +59,7 @@ contains
       if (p % matIdx() == OUTSIDE_FILL) then
         p % fate = LEAK_FATE
         p % isDead = .true.
-        call tally % reportTrans(p)
+        call tally % reportTrans(p, self % geom)
         return
       end if
 
@@ -80,7 +80,7 @@ contains
 
     end do DTLoop
 
-    call tally % reportTrans(p)
+    call tally % reportTrans(p, self % geom)
   end subroutine deltaTracking
 
 
