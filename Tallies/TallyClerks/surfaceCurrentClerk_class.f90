@@ -20,6 +20,7 @@ module surfaceCurrentClerk_class
     ! Tally Maps
     use tallyMap_inter,             only : tallyMap
     use tallyMapFactory_func,       only : new_tallyMap
+    use geometry_inter, only : geometry
 
     implicit none
     private
@@ -35,7 +36,6 @@ module surfaceCurrentClerk_class
     !!   map      -> Map to segment the space
     !!   NSpace   -> Number of spatial Bins
     !!   NEnergy  -> Number of energy Bins
-    !!   spacing  -> Spacing of the spatial bins
     !!
     !! Interface:
     !!   tallyClerk Interface
@@ -44,7 +44,6 @@ module surfaceCurrentClerk_class
     !!
     !!  clerkName {
     !!      type surfaceCurrentClerk;
-    !!      spacing (0.2, 0.2, 0.2);
     !!      energyMap { energyMap definition }
     !!      spaceMapX { uniform spaceMap definition }
     !!      spaceMapY { uniform spaceMap definition }
@@ -60,7 +59,6 @@ module surfaceCurrentClerk_class
       ! Number of spacial memory bins (spaceMap + 1 in each dim)
       integer(shortInt)                        :: NSpace = 0
       integer(shortInt)                        :: NEnergy = 0
-      real(defReal), dimension(:), allocatable :: spacing
     contains
       ! Procedures used during build
       procedure  :: init
@@ -83,6 +81,7 @@ module surfaceCurrentClerk_class
 
       ! (Private) Utility
       procedure  :: reportCurrentInDirection
+      procedure :: reportCurrentDueToMovement
     end type surfaceCurrentClerk
 
     !!
@@ -122,12 +121,6 @@ module surfaceCurrentClerk_class
       call new_tallyMap(self % spaceMaps(2) % map, dict % getDictPtr('spaceMapY'))
       call new_tallyMap(self % spaceMaps(3) % map, dict % getDictPtr('spaceMapZ'))
 
-      call dict % get(self % spacing, 'spacing')
-
-      if (size(self % spacing) /= 3) then
-        call fatalError(Here, "SurfaceCurrentClerk requires size('spacing') == 3")
-      end if
-
       self % NEnergy = self % energyMap % bins(0)
 
       ! (xsize + 1) * (ysize + 1) * (zsize + 1)
@@ -147,7 +140,6 @@ module surfaceCurrentClerk_class
       class(surfaceCurrentClerk),intent(in) :: self
       integer(shortInt),dimension(:),allocatable  :: validCodes
 
-      ! TODO: use trans_CODE here instead
       validCodes = [trans_CODE, cycleEnd_Code]
 
     end function validReports
@@ -165,117 +157,157 @@ module surfaceCurrentClerk_class
 
     end function getSize
 
-    subroutine reportCurrentInDirection(self, mem, weight, state_in, startIn, endIn, dir)
+    subroutine reportCurrentDueToMovement(self, mem, baseAddr, weight, dir, oldR, newR)
       class(surfaceCurrentClerk), intent(inout) :: self
       type(scoreMemory), intent(inout)          :: mem
-      real(defReal), intent(in)                 :: weight
-      type(particleState), intent(in)           :: state_in
-      real(defReal),dimension(3), intent(in)    :: startIn, endIn
-      integer(shortInt), intent(in)             :: dir
-      type(particleState)                       :: state
-      integer(shortInt)                         :: coordAtEnd, coordAtStart, i, j, energyGroup
-      integer(longInt)                          :: baseAddr, addr, index, lastIndex, stride
-      real(defReal)                             :: surfaceCrossSection, currentContribution
-      real(defReal),dimension(3)                :: step, diff, startPos, endPos
+      integer(longInt) :: baseAddr
+      real(defReal) :: weight
+      integer(shortInt), intent(in) :: dir
+      real(defReal),dimension(3), intent(in) :: oldR, newR
+      integer(shortInt) :: stride, index, oldDirIndex, newDirIndex
+      type(particleState) :: stateNew, stateOld, negativeState, positiveState
+      real(defReal),dimension(3) :: diff
+      integer(shortInt) :: negBinIndex, posBinIndex, j
+      real(defReal) :: currentContribution
 
-      ! Copy the state to allow mutation
-      state = state_in
-      state % r = startIn
+      stateOld % isMG = .false.
+      stateOld % r = oldR
 
-      ! Discretize onto the grid
-      coordAtStart = self % spaceMaps(dir) % map % map(state)
-      state % r = endIn
-      coordAtEnd = self % spaceMaps(dir) % map % map(state)
+      stateNew % isMG = .false.
+      stateNew % r = newR
 
-      ! No boundaries crossed => no current
-      if (coordAtStart == coordAtEnd) return
+      oldDirIndex = self % spaceMaps(dir) % map % map(stateOld)
+      newDirIndex = self % spaceMaps(dir) % map % map(stateNew)
 
-      if (coordAtStart == 0) then
-        call fatalError("reportCurrentInDirection", "particle starting from illegal position")
+      if (oldDirIndex == newDirIndex) then
+        ! No boundaries crossed: no current
+        return
       end if
 
-      ! TODO: can the energy of a particle change during a transport?
-      energyGroup = self % energyMap % map(state)
+      ! Ensure we travel from negative to positive
+      if (oldR(dir) < newR(dir)) then
+        negativeState = stateOld
+        positiveState = stateNew
+      else
+        negativeState = stateNew
+        positiveState = stateOld
+      end if
+
+      ! Lower boundary
+      stride = 1
+      negBinIndex = 0
+      do j = 1, size(self % spaceMaps)
+        index = self % spaceMaps(j) % map % map(negativeState)
+        if (index == 0) then
+          if (j == dir) then
+          else
+            negBinIndex = -1;
+            exit;
+          end if
+        end if
+
+        negBinIndex = negBinIndex + stride * index
+        stride = stride * (self % spaceMaps(j) % map % bins(0) + 1)
+      end do
+
+      ! Upper boundary
+      stride = 1
+      posBinIndex = 0
+      do j = 1, size(self % spaceMaps)
+        index = self % spaceMaps(j) % map % map(positiveState)
+        if (index == 0) then
+          if (j == dir) then
+            index = self % spaceMaps(j) % map % bins(0) + 1
+          else
+            posBinIndex = -1;
+            exit;
+          end if
+        end if
+
+        if (j == dir) then
+          index = index - 1
+        end if
+
+        posBinIndex = posBinIndex + stride * index
+        stride = stride * (self % spaceMaps(j) % map % bins(0) + 1)
+      end do
+
+      if (negBinIndex == -1 .and. posBinIndex == -1) then
+        return
+      end if
+      if (negBinIndex == -1) then
+        negBinIndex = posBinIndex
+      end if
+      if (posBinIndex == -1) then
+        posBinIndex = negBinIndex
+      end if
+
+      ! Calculate the actual current
+      diff = newR - oldR
+
+      ! Negative contribution since we are backtracking
+      currentContribution = -(weight * diff(dir)) / norm2(diff)
+
+      if (posBinIndex == negBinIndex) then
+        call mem % score(currentContribution, baseAddr + negBinIndex)
+      else
+        call mem % score(0.5 * currentContribution, baseAddr + negBinIndex)
+        call mem % score(0.5 * currentContribution, baseAddr + posBinIndex)
+      end if
+      ! TODO: relax this assumption
+      ! if (posBinIndex /= negBinIndex) then
+      !   print *, "potential inaccuracy"
+      !   print *, "dir: ", dir, "r ", negativeState % r
+      !   print *, "pos: x: ", self % spaceMaps(1) % map % map(positiveState), "y: ", &
+      !     self % spaceMaps(2) % map % map(positiveState), "z: ", self % spaceMaps(3) % map % map(positiveState)
+      !   print *, "neg: x: ", self % spaceMaps(1) % map % map(negativeState), "y: ", &
+      !     self % spaceMaps(2) % map % map(negativeState), "z: ", self % spaceMaps(3) % map % map(negativeState)
+      ! end if
+
+    end subroutine reportCurrentDueToMovement
+
+
+    subroutine reportCurrentInDirection(self, mem, geom, endP, dir)
+      class(surfaceCurrentClerk), intent(inout) :: self
+      type(scoreMemory), intent(inout)          :: mem
+      class(geometry), intent(in) :: geom
+      type(particle), intent(in) :: endP
+      integer(shortInt), intent(in) :: dir
+      type(particleState) :: endPState, startPState, currentState
+      integer(shortInt) :: energyGroup
+      integer(longInt) :: baseAddr
+      type(particle) :: currentParticle
+      real(defReal),dimension(3) :: oldR
+
+      endPState = endP
+      startPState = endP % preTransition
+      energyGroup = self % energyMap % map(startPState)
       if (energyGroup == 0) return  ! We're not interested in this energy group
 
       ! Index (x, y, z, dir, energy) (energy has the largest stride)
       baseAddr = self % getMemAddress() + (energyGroup - 1) * (3 * self % NSpace) + (dir - 1) * (self % NSpace)
 
-      diff = endIn - startIn
-      surfaceCrossSection = (self % spacing(1) * self % spacing(2) * self % spacing(3)) / (self % spacing(dir))
-      currentContribution = (weight * diff(dir)) / (norm2(diff) * surfaceCrossSection)
+      ! Traverse backward until we reach the starting position
+      currentParticle = endP
+      call currentParticle % build(endPState % r, -endPState % dir, endPState % E, endPState % wgt)
 
-      ! If we leave the mesh, we should only run for a single extra iteration
-      if (coordAtEnd == 0) then
-        if (diff(dir) > 0) then
-          coordAtEnd = self % spaceMaps(dir) % map % bins(0) + 1
-        else
-          coordAtEnd = 0
-        end if
-      end if
+      oldR = endPState % r
+      do
+        ! Move partice in the geometry
+        call geom % teleport(currentParticle % coords, 0.01_defReal)
 
-      ! Ensure that all math is positive
-      if (diff(dir) > 0) then
-        startPos = startIn
-        endPos = endIn
-      else
-        ! Swap the start and end coordinates
-        startPos = endIn
-        endPos = startIn
-      end if
+        currentState = currentParticle
+        call self % reportCurrentDueToMovement(mem, baseAddr, currentState % wgt, dir, oldR, currentState % r)
+        oldR = currentState % r
 
-      ! Normalized so step(dir) == spacing(dir)
-      step = (diff / diff(dir)) * (self % spacing)
-
-      ! Score the current between all intermediate surfaces
-      !    NOTE: we are always going from left to right
-      if (step(dir) < 0) then
-        call fatalError("reportCurrentInDirection", "negative step")
-      end if
-
-      ! Do first step to initialize problem
-      stride = 1
-      state % r = startPos
-      lastIndex = 0
-      do j = 1, size(self % spaceMaps)
-        index = self % spaceMaps(j) % map % map(state)
-        lastIndex = lastIndex + stride * index
-        stride = stride * (self % spaceMaps(j) % map % bins(0) + 1)
-
-        ! Indicies outside of mapping
-        if (index == 0 .and. j /= dir) then
-          lastIndex = -1
+        ! print *, norm2(currentState % r - startPState % r)
+        if (norm2(currentState % r - startPState % r) < 0.01_defReal) then
+          ! Have we returned to the start?
+          ! If so, transport must have finished
           exit
         end if
       end do
-      if (stride /= self % NSpace .and. lastIndex /= -1) then
-        call fatalError("reportCurrentInDirection", "bad index calculation")
-      end if
 
-      ! Step through mesh and record current
-      do i = 1, abs(coordAtEnd - coordAtStart)
-        state % r = startPos + i * step
-
-        if (lastIndex /= -1) then
-          addr = baseAddr + lastIndex
-          call mem % score(currentContribution, addr)
-        end if
-
-        ! Map in space
-        stride = 1
-        lastIndex = 0
-        do j = 1, size(self % spaceMaps)
-          index = self % spaceMaps(j) % map % map(state)
-          lastIndex = lastIndex + stride * index
-          stride = stride * (self % spaceMaps(j) % map % bins(0) + 1)
-
-          ! Indicies outside of mapping
-          if (index == 0 .and. j /= dir) then
-            lastIndex = -1
-            exit
-          end if
-        end do
-      end do
     end subroutine reportCurrentInDirection
 
     !!
@@ -283,21 +315,17 @@ module surfaceCurrentClerk_class
     !!
     !! See tallyClerk_inter for details
     !!
-    subroutine reportTrans(self, p, xsData, mem)
+    subroutine reportTrans(self, p, xsData, mem, geom)
       class(surfaceCurrentClerk), intent(inout) :: self
       class(particle), intent(in)                     :: p
       class(nuclearDatabase),intent(inout)            :: xsData
       type(scoreMemory), intent(inout)                :: mem
-      type(particleState)                             :: state
-      character(100), parameter :: Here = 'reportTrans (surfaceCurrentClerk_class.f90)'
+      class(geometry), intent(in) :: geom
 
-      ! XXX: reflective boundary logged wrong, look at direction flip
       ! XXX: periodic boundaries: particle behind where its pointing
-
-      state = p
-      call self % reportCurrentInDirection(mem, p % w, state, p % preTransition % r, state % r, 1)
-      call self % reportCurrentInDirection(mem, p % w, state, p % preTransition % r, state % r, 2)
-      call self % reportCurrentInDirection(mem, p % w, state, p % preTransition % r, state % r, 3)
+      call self % reportCurrentInDirection(mem, geom, p, 1)
+      call self % reportCurrentInDirection(mem, geom, p, 2)
+      call self % reportCurrentInDirection(mem, geom, p, 3)
     end subroutine reportTrans
 
     !!
