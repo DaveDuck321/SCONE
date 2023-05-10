@@ -66,7 +66,7 @@ contains
                state % r = [0.5 + x * scale, 0.5 + y * scale, 0.5 + z * scale]
                idx = this % getMapIndex(state)
                if (idx /= 0) then
-                  print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, 1, idx, 1)
+                  print *, "r: ", state % r, "mapping: ", idx, "  Current: ", currentMatrix % JM (1, 1, idx)
                end if
             end do
          end do
@@ -262,12 +262,12 @@ contains
          state % r = [-0.5, 0.5, 0.5]
          idx = this % getMapIndex(state)
 
-         @assertEqual(0.75_defReal, res % JM(1, 1, idx + 1, 1), TOL)
+         @assertEqual(0.75_defReal, res % JM(1, 1, idx + 1), TOL)
 
          ! Confirm no other currents have been recorded
          do i=1, (this % NEnergy) * ((this % NSpace) ** 3)
             if (i /= idx + 1) then
-               @assertEqual(0.0_defReal, res % JM(1, 1, i, 1), TOL)
+               @assertEqual(0.0_defReal, res % JM(1, 1, i), TOL)
             end if
          end do
        class default
@@ -339,11 +339,11 @@ contains
          ! Test current corresponding to the x=-1 boundary
          state % r = [-0.5, 0.5, 0.5]
          idx = this % getMapIndex(state) - 1  ! x-stride is 1... index-1 is the boundary
-         @assertEqual(-1.0_defReal, res % JM(1, 1, idx + 1, 1), TOL)
+         @assertEqual(-1.0_defReal, res % JM(1, 1, idx + 1), TOL)
 
          state % r = [0.5, 0.5, 0.5]
          idx = this % getMapIndex(state)  ! each cell contains the current of the rhs boundary
-         @assertEqual(0.5_defReal, res % JM(1, 1, idx + 1, 1), TOL)
+         @assertEqual(0.5_defReal, res % JM(1, 1, idx + 1), TOL)
        class default
          @assertEqual(0, 1)
       end select

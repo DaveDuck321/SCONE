@@ -1,3 +1,4 @@
+
 module surfaceCurrentClerk_class
 
     use numPrecision
@@ -59,6 +60,7 @@ module surfaceCurrentClerk_class
       ! Number of spacial memory bins (spaceMap + 1 in each dim)
       integer(shortInt)                        :: NSpace = 0
       integer(shortInt)                        :: NEnergy = 0
+      real(defReal), dimension(:), allocatable :: spacing
     contains
       ! Procedures used during build
       procedure  :: init
@@ -89,12 +91,12 @@ module surfaceCurrentClerk_class
     !!   Stored in column first order
     !!    dim1 -> energy group
     !!    dim2 -> 1 is J_{x+1/2, y, z}, 2 is J_{x, y+1/2, z}, 3 is J_{x, y, z+1/2}
-    !!    dim3 -> 1 is values; 2 is STDs
+    !!    dim3 -> Space coordinate
     !!
     type,public, extends(tallyResult) :: SJResult
       integer(shortInt)                           :: NEnergy  = 0
       integer(shortInt)                           :: NSpace  = 0
-      real(defReal), dimension(:, :,:,:),allocatable :: JM ! Current matrix
+      real(defReal), dimension(:, :, :),allocatable :: JM ! Current matrix
     end type SJResult
 
   contains
@@ -128,6 +130,8 @@ module surfaceCurrentClerk_class
       self % NSpace = self % NSpace * (self % spaceMaps(1) % map % bins(0) + 1)
       self % NSpace = self % NSpace * (self % spaceMaps(2) % map % bins(0) + 1)
       self % NSpace = self % NSpace * (self % spaceMaps(3) % map % bins(0) + 1)
+
+      call dict % get(self % spacing, 'spacing')
 
     end subroutine init
 
@@ -274,10 +278,11 @@ module surfaceCurrentClerk_class
       type(particle), intent(in) :: endP
       integer(shortInt), intent(in) :: dir
       type(particleState) :: endPState, startPState, currentState
-      integer(shortInt) :: energyGroup
+      integer(shortInt) :: energyGroup, eventOut
       integer(longInt) :: baseAddr
       type(particle) :: currentParticle
       real(defReal),dimension(3) :: oldR
+      real(defReal) :: moveDist, distFromEnd
 
       endPState = endP
       startPState = endP % preTransition
@@ -295,13 +300,16 @@ module surfaceCurrentClerk_class
       do
         ! Move partice in the geometry
         !   geom % moveGlobal (also points in correct direction)
-        call geom % teleport(currentParticle % coords, 0.01_defReal)
+        currentState = currentParticle
+        distFromEnd = norm2(currentState % r - startPState % r)
+        moveDist = min(self % spacing(1), self % spacing(2), self % spacing(3), distFromEnd)
+        call geom % moveGlobal(currentParticle % coords, moveDist, eventOut)
 
         currentState = currentParticle
         call self % reportCurrentDueToMovement(mem, baseAddr, currentState % wgt, dir, oldR, currentState % r)
         oldR = currentState % r
 
-        ! print *, norm2(currentState % r - startPState % r)
+        ! print *, self % spacing, distFromEnd, moveDist
         if (norm2(currentState % r - startPState % r) < 0.01_defReal) then
           ! Have we returned to the start?
           ! If so, transport must have finished
@@ -374,10 +382,8 @@ module surfaceCurrentClerk_class
             deallocate(res)
             allocate( SJResult :: res)
        end select
-
       else
         allocate( SJResult :: res)
-
       end if
 
       ! Load data into the JM
@@ -385,12 +391,12 @@ module surfaceCurrentClerk_class
         class is(SJResult)
           ! Check size and reallocate space if needed
           if (allocated(res % JM)) then
-            if( any(shape(res % JM) /= [self % NEnergy, 3, self % NSpace, 2])) then
+            if(any(shape(res % JM) /= [self % NEnergy, 3, self % NSpace])) then
               deallocate(res % JM)
-              allocate(res % JM(self % NEnergy, 3, self % NSpace, 2))
+              allocate(res % JM(self % NEnergy, 3, self % NSpace))
             end if
           else
-            allocate(res % JM(self % NEnergy, 3, self % NSpace, 2))
+            allocate(res % JM(self % NEnergy, 3, self % NSpace))
           end if
 
           ! Set size of the JM
@@ -402,10 +408,9 @@ module surfaceCurrentClerk_class
           do i = 1, self % NEnergy
             do j = 1, 3
               do k = 1, self % NSpace
-                addr = addr + 1
-                call mem % getResult(val, STD, addr)
-                res % JM(i, j, k, 1) = val
-                res % JM(i, j, k, 2) = STD
+                  addr = addr + 1
+                  call mem % getResult(val, STD, addr)
+                  res % JM(i, j, k) = val
               end do
             end do
           end do

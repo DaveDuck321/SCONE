@@ -159,7 +159,6 @@ contains
     real(defReal),dimension(:),allocatable :: averageFlux
     integer :: io
     character(100),parameter :: Here ='cycles (eigenPhysicsPackage_class.f90)'
-    logical(defBool),parameter :: calculateDist = .true.
     !$omp threadprivate(neutron, buffer, collOp, transOp, pRNG)
 
     allocate(totalBinWeights(self % fluxMap % bins(0)))
@@ -208,26 +207,6 @@ contains
         end if
       end do
       print *, cumulativeWeight
-
-      if (calculateDist) then
-        ! Get total weight in each bin
-        averageFlux = averageFlux + totalBinWeights / cumulativeWeight
-      else
-        do n = 1, Nstart
-          p = self % thisCycle % get(n)
-          state = p
-          mapIndex = self % fluxMap % map (state)
-          if (mapIndex /= 0) then
-            ! XXX: use production rate, nu xs_fission
-            ! Report tip, plot xs everywhere
-            state % wgt = state % wgt * ((cumulativeWeight * self % finalFlux(mapIndex)) / totalBinWeights(mapIndex))
-            call self % thisCycle % replace(state, n)
-          else
-            print *, state % r
-          end if
-        end do
-
-      end if
 
       ! Send start of cycle report
       call tally % reportCycleStart(self % thisCycle)
@@ -338,15 +317,6 @@ contains
     ! Load elapsed time
     self % time_transport = self % time_transport + elapsed_T
 
-    ! if (calculateDist) then
-    !   open(newunit=io, file="finalFlux", action="write")
-    !   do n = 1, self % fluxMap % bins(0)
-    !     write(io, *) averageFlux(n)
-    !   end do
-    !   write(io, *) ""
-    !   close(io)
-    ! end if
-
     deallocate(totalBinWeights)
     deallocate(averageFlux)
 
@@ -455,42 +425,6 @@ contains
     call dict % get( energy, 'dataType')
 
     call new_tallyMap(self % fluxMap, dict % getDictPtr('fluxMap'))
-
-    if (.not. calculateDist) then
-      ! Get the final flux
-      open(newunit = fluxFile, &
-          file = "finalFlux", &
-          status='old', &
-          action='read', &
-          iostat = errorCode, &
-          iomsg = errorMsg)
-
-      if(errorCode /= 0) call fatalError(Here, "File Error: "//trim(adjustl(errorMsg)))
-
-      index = 1
-      do
-        read(unit = fluxFile, fmt="(E5.30)", iostat=readStat) number
-        if(readStat == IOSTAT_END) exit
-        index = index + 1;
-      end do
-
-      rewind(unit = fluxFile)
-      allocate(self % finalFlux(index + 1));
-
-      index = 1
-      sum = 0
-      do
-        read(unit = fluxFile, fmt="(E5.30)", iostat=readStat) number
-        if(readStat == IOSTAT_END) exit
-
-        self % finalFlux (index) = number
-        index = index + 1;
-        sum = sum + number
-      end do
-
-      self % finalFlux = self % finalFlux / sum
-      print *, self % finalFlux
-    end if
 
     ! Parallel buffer size
     call dict % getOrDefault( self % bufferSize, 'buffer', 10)

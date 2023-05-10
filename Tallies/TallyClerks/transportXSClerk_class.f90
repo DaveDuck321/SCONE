@@ -100,13 +100,16 @@ module transportXSClerk_class
     !! multi group cross section result class
     !!
     !! Public Members:
-    !!   MGdata(:,:) -> the first dimension represents material/universe number
-    !!                  the second dimension the following energy vectors:
-    !!                  capture, fission, nu, chi, P0, P1, scattering matrix
     !!
-    type,public, extends(tallyResult) :: xsMatrix
-      real(defReal), dimension(:,:), allocatable  :: MGdata
-    end type xsMatrix
+    type,public, extends(tallyResult) :: XSResults
+      real(defReal), dimension(:), allocatable  :: transportXS
+      real(defReal), dimension(:), allocatable  :: totalXS
+      real(defReal), dimension(:), allocatable  :: scatterXS
+      real(defReal), dimension(:), allocatable  :: fissionXS
+      real(defReal), dimension(:), allocatable  :: nuBar
+      real(defReal), dimension(:), allocatable  :: scatteringProductionXS
+      real(defReal), dimension(:), allocatable  :: fissionProductionXS
+    end type XSResults
 
   contains
 
@@ -501,29 +504,26 @@ module transportXSClerk_class
       class(transportXSClerk), intent(in)                     :: self
       class(tallyResult), allocatable, intent(inout)   :: res
       type(scoreMemory), intent(in)                    :: mem
-      integer(shortInt)                                :: N, i, j
-      real(defReal), dimension(:), allocatable :: sigmaF, sigmaC, nuBar, chiT, P0, P1, prod, transFL, &
-                                                  transOS, fissionProductionXS, scatteringProductionXS, totalXS, scatXS
+      real(defReal), dimension(:), allocatable :: sigmaC, chiT, P0, P1, prod, transOS
       real(defReal), dimension(:), allocatable :: flux
-      real(defReal), dimension(:,:), allocatable :: matrix
 
-      call self % processResult(mem, sigmaF, sigmaC, transFL, transOS, nuBar, chiT, P0, P1, &
-                                prod, flux, scatteringProductionXS, fissionProductionXS, totalXS, scatXS)
+      if(allocated(res)) then
+        select type(res)
+          class is (XSResults)
+            ! Do nothing
+          class default ! Reallocate
+            deallocate(res)
+            allocate(XSResults :: res)
+       end select
+      else
+        allocate(XSResults :: res)
+      end if
 
-      N = self % energyN
-      allocate(matrix(self % matN, N))
-
-      ! Loop over spatial regions
-      do i = 1, self % matN
-        ! Loop over energies
-        do j = 1, N
-          ! TODO: HACK!! I only record the transport cross section
-          matrix(i, j) = transFL(N-(j-1) + N*(i-1))
-        end do
-      end do
-
-      allocate(res, source = xsMatrix(matrix))
-
+      select type(res)
+        class is(XSResults)
+          call self % processResult(mem, res%fissionXS, sigmaC, res%transportXS, transOS, res%nuBar, chiT, P0, P1, &
+                                    prod, flux, res%scatteringProductionXS, res%fissionProductionXS, res%totalXS, res%scatterXS)
+      end select
     end subroutine getResult
 
     !!
