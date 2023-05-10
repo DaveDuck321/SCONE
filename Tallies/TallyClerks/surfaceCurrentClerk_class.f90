@@ -294,6 +294,7 @@ module surfaceCurrentClerk_class
       oldR = endPState % r
       do
         ! Move partice in the geometry
+        !   geom % moveGlobal (also points in correct direction)
         call geom % teleport(currentParticle % coords, 0.01_defReal)
 
         currentState = currentParticle

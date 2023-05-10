@@ -159,7 +159,7 @@ contains
     real(defReal),dimension(:),allocatable :: averageFlux
     integer :: io
     character(100),parameter :: Here ='cycles (eigenPhysicsPackage_class.f90)'
-    logical(defBool),parameter :: calculateDist = .false.
+    logical(defBool),parameter :: calculateDist = .true.
     !$omp threadprivate(neutron, buffer, collOp, transOp, pRNG)
 
     allocate(totalBinWeights(self % fluxMap % bins(0)))
@@ -218,6 +218,8 @@ contains
           state = p
           mapIndex = self % fluxMap % map (state)
           if (mapIndex /= 0) then
+            ! XXX: use production rate, nu xs_fission
+            ! Report tip, plot xs everywhere
             state % wgt = state % wgt * ((cumulativeWeight * self % finalFlux(mapIndex)) / totalBinWeights(mapIndex))
             call self % thisCycle % replace(state, n)
           else
@@ -336,14 +338,14 @@ contains
     ! Load elapsed time
     self % time_transport = self % time_transport + elapsed_T
 
-    if (calculateDist) then
-      open(newunit=io, file="finalFlux", action="write")
-      do n = 1, self % fluxMap % bins(0)
-        write(io, *) averageFlux(n)
-      end do
-      write(io, *) ""
-      close(io)
-    end if
+    ! if (calculateDist) then
+    !   open(newunit=io, file="finalFlux", action="write")
+    !   do n = 1, self % fluxMap % bins(0)
+    !     write(io, *) averageFlux(n)
+    !   end do
+    !   write(io, *) ""
+    !   close(io)
+    ! end if
 
     deallocate(totalBinWeights)
     deallocate(averageFlux)
@@ -441,7 +443,7 @@ contains
     real(defReal) :: number, sum
 
     character(100), parameter :: Here ='init (eigenPhysicsPackage_class.f90)'
-    logical(defBool), parameter :: calculateDist = .false.
+    logical(defBool), parameter :: calculateDist = .true.
 
     call cpu_time(self % CPU_time_start)
 
