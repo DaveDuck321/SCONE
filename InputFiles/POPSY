@@ -2,7 +2,7 @@ type eigenPhysicsPackage;
 
 //pop      200000;
 pop 20000;
-active   0;
+active   500;
 inactive 300;
 XSdata   ce;
 dataType ce;
@@ -21,9 +21,35 @@ transportOperator { type transportOperatorST;
 // This avoid needless generation of particles in U-nat reflector
 
 source { type pointSource; r (0.0 0.0 0.0); particle neutron; E 0.6E-6; }
-
-
-
+fluxMap {
+      type multiMap;
+      maps (energy mapx mapy mapz);
+      energy {type energyMap; grid predef; name casmo7 ; }
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -24.2;
+        max 24.2;
+        N 20;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -24.2;
+        max 24.2;
+        N 20;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -24.2;
+        max 24.2;
+        N 20;
+      }
+    }
 
 inactiveTally {
   entropy {
@@ -71,25 +97,25 @@ activeTally  {
         type spaceMap;
         axis x;
         grid lin;
-        min -10.0;
-        max 10.0;
-        N 10;
+        min -24.2;
+        max 24.2;
+        N 20;
       }
       mapy {
         type spaceMap;
         axis y;
         grid lin;
-        min -10.0;
-        max 10.0;
-        N 10;
+        min -24.2;
+        max 24.2;
+        N 20;
       }
       mapz {
         type spaceMap;
         axis z;
         grid lin;
-        min -10.0;
-        max 10.0;
-        N 10;
+        min -24.2;
+        max 24.2;
+        N 20;
       }
     }
     response (flux);

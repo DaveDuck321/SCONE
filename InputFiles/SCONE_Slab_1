@@ -1,7 +1,7 @@
 type eigenPhysicsPackage;
 
 pop      200000;
-active   30;
+active   15;
 inactive 30;
 XSdata   ce;
 dataType ce;
@@ -12,7 +12,6 @@ source { type fissionSource; }
 
 collisionOperator {
                     neutronCE {type neutronCEstd;}
-                    neutronMG {type neutronMGstd;}
                   }
 
 transportOperator { type transportOperatorDT;
@@ -34,9 +33,9 @@ fluxMap {
     type spaceMap;
     axis y;
     grid lin;
-    min -100.0;
-    max 100.0;
-    N 100;
+    min -25.0;
+    max 25.0;
+    N 10;
   }
   mapz {
     type spaceMap;
@@ -71,9 +70,9 @@ activeTally  {
         type spaceMap;
         axis y;
         grid lin;
-        min -100.0;
-        max 100.0;
-        N 100;
+        min -25.0;
+        max 25.0;
+        N 10;
       }
       mapz {
         type spaceMap;
@@ -105,9 +104,9 @@ activeTally  {
         type spaceMap;
         axis y;
         grid lin;
-        min -100.0;
-        max 100.0;
-        N 100;
+        min -25.0;
+        max 25.0;
+        N 10;
       }
       mapz {
         type spaceMap;
@@ -121,7 +120,6 @@ activeTally  {
   }
   current {
     type surfaceCurrentClerk;
-    spacing (2.0 2.0 2.0);
     energyMap {type energyMap; grid lin; min 0.0; max 50; N 1;}
     spaceMapX {
       type spaceMap;
@@ -135,9 +133,9 @@ activeTally  {
       type spaceMap;
       axis y;
       grid lin;
-      min -100.0;
-      max 100.0;
-      N 100;
+      min -25.0;
+      max 25.0;
+      N 10;
     }
     spaceMapZ {
       type spaceMap;
@@ -152,12 +150,12 @@ activeTally  {
 
 geometry {
     type geometryStd;
-    boundary (0 0 0 0 0 0);
-    graph {type shrunk;}`
+    boundary (1 1 1 1 1 1);
+    graph {type shrunk;}
 
     surfaces
     {
-      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (1 100 1); }
+      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (1 25 1); }
     }
 
 
