@@ -1,8 +1,8 @@
 type eigenPhysicsPackage;
 
 pop      200000;
-active   30;
-inactive 30;
+active   2;
+inactive 2;
 XSdata   ce;
 dataType ce;
 
@@ -34,9 +34,9 @@ fluxMap {
     type spaceMap;
     axis y;
     grid lin;
-    min -100.0;
-    max 100.0;
-    N 100;
+    min -10.0;
+    max 10.0;
+    N 10;
   }
   mapz {
     type spaceMap;
@@ -71,9 +71,9 @@ activeTally  {
         type spaceMap;
         axis y;
         grid lin;
-        min -100.0;
-        max 100.0;
-        N 100;
+        min -10.0;
+        max 10.0;
+        N 10;
       }
       mapz {
         type spaceMap;
@@ -105,9 +105,9 @@ activeTally  {
         type spaceMap;
         axis y;
         grid lin;
-        min -100.0;
-        max 100.0;
-        N 100;
+        min -10.0;
+        max 10.0;
+        N 10;
       }
       mapz {
         type spaceMap;
@@ -135,9 +135,9 @@ activeTally  {
       type spaceMap;
       axis y;
       grid lin;
-      min -100.0;
-      max 100.0;
-      N 100;
+      min -10.0;
+      max 10.0;
+      N 10;
     }
     spaceMapZ {
       type spaceMap;
@@ -153,11 +153,11 @@ activeTally  {
 geometry {
     type geometryStd;
     boundary (0 0 0 0 0 0);
-    graph {type shrunk;}`
+    graph {type shrunk;}
 
     surfaces
     {
-      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (1 100 1); }
+      squareBound { id 1; type box; origin ( 0.0  0.0  0.0); halfwidth (1 10 1); }
     }
 
 
@@ -181,7 +181,7 @@ geometry {
 nuclearData {
 
   handles {
-     ce { type aceNeutronDatabase; aceLibrary /home/tom/NuclearData/myACE/JEF311.aceXS;}
+     ce { type aceNeutronDatabase; aceLibrary /home/tom/Downloads/myACE/JEF311.aceXS;}
      mg { type baseMgNeutronDatabase; PN P0;}
   }
 
