@@ -1,0 +1,203 @@
+type eigenPhysicsPackage;
+
+pop      100000;
+active   1;
+inactive 1;
+XSdata   ce;
+dataType ce;
+outputFormat asciiJSON;
+
+source { type fissionSource; }
+
+collisionOperator { neutronCE {type neutronCEstd;}
+                    neutronMG {type neutronMGstd;}
+                  }
+
+transportOperator { type transportOperatorDT;
+                  }
+
+inactiveTally {
+  entropy {
+    type shannonEntropyClerk;
+    map {
+      type multiMap;
+      maps (mapx mapy mapz);
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -5;
+        max 5;
+        N 1;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -15;
+        max 15;
+        N 5;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -5;
+        max 5;
+        N 1;
+      }
+    }
+    cycles 200;
+  }
+              }
+
+activeTally  {
+  fluxMap {
+    type collisionClerk;
+    map {
+      type multiMap;
+      maps (mapx mapy mapz);
+      mapx {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -5;
+        max 5;
+        N 1;
+      }
+      mapy {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -15;
+        max 15;
+        N 5;
+      }
+      mapz {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -5;
+        max 5;
+        N 1;
+      }
+    }
+    response (flux);
+    flux { type fluxResponse;}
+  }
+
+  currentMap {
+    type surfaceCurrentClerk;
+    spacing (10.0 6.0 10.0);
+    energyMap {type energyMap; grid lin; min 0.0; max 50; N 1;}
+    spaceMapX {
+      type spaceMap;
+      axis x;
+      grid lin;
+      min -5.0;
+      max 5.0;
+      N 1;
+    }
+    spaceMapY {
+      type spaceMap;
+      axis y;
+      grid lin;
+      min -15.0;
+      max 15.0;
+      N 5;
+    }
+    spaceMapZ {
+      type spaceMap;
+      axis z;
+      grid lin;
+      min -5.0;
+      max 5.0;
+      N 1;
+    }
+  }
+
+  transportXS {
+    type transportXSClerk;
+    energyMap {type energyMap; grid lin; min 0.0; max 50; N 1;}
+    spaceMap {
+      type multiMap;
+      maps (spaceMapX spaceMapY spaceMapZ);
+      spaceMapX {
+        type spaceMap;
+        axis x;
+        grid lin;
+        min -5;
+        max 5;
+        N 1;
+      }
+      spaceMapY {
+        type spaceMap;
+        axis y;
+        grid lin;
+        min -15;
+        max 15;
+        N 5;
+      }
+      spaceMapZ {
+        type spaceMap;
+        axis z;
+        grid lin;
+        min -5;
+        max 5;
+        N 1;
+      }
+    }
+  }
+}
+
+geometry {
+    type geometryStd;
+    boundary (0 0 0 0 0 0);
+    graph {type shrunk;}
+
+    surfaces
+    {
+      squareBound { id 1; type box; origin (0.0  0.0  0.0); halfwidth (5 15 5); }
+    }
+
+
+    cells
+    {
+    }
+
+    universes
+    {
+
+      root
+      {
+        id 1;
+        type rootUniverse;
+        border 1;
+        fill fuel;
+      }
+    }
+}
+
+nuclearData {
+
+  handles {
+     ce { type aceNeutronDatabase; aceLibrary /home/tom/Downloads/myACE/JEF311.aceXS;}
+     mg { type baseMgNeutronDatabase; PN P1;}
+  }
+
+
+materials {
+
+    fuel {
+      temp       273;
+      composition {
+        92235.03  0.00037047;
+        1001.03  0.37047;
+
+      }
+      xsFile ./XS/URRa_2_1_XSS;
+    }
+
+}
+
+}

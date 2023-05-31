@@ -310,7 +310,7 @@ module surfaceCurrentClerk_class
         oldR = currentState % r
 
         ! print *, self % spacing, distFromEnd, moveDist
-        if (norm2(currentState % r - startPState % r) < 0.01_defReal) then
+        if (norm2(currentState % r - startPState % r) < 0.0001_defReal) then
           ! Have we returned to the start?
           ! If so, transport must have finished
           exit
